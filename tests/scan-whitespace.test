@@ -1,0 +1,25 @@
+# Tabs (columns move to the next multiple of 8), carriage returns (white
+# space, dropped from comments), a form feed, and several blank lines.
+program Opp
+arg --tokens
+arg tests/data/scan-whitespace.Mod
+status 0
+output
+1:1 keyword MODULE
+1:8 identifier Whitespace
+1:18 symbol ;
+2:9 keyword VAR
+2:17 identifier x
+2:18 symbol :
+2:25 identifier INTEGER
+2:32 symbol ;
+  lead 5:17 blank newline multiline (* tabbed\n\t\t   comment *)
+7:3 keyword VAR
+7:7 identifier y
+7:8 symbol :
+7:10 identifier CHAR
+7:14 symbol ;
+7:16 keyword END
+7:20 identifier Whitespace
+7:30 symbol .
+8:1 end of text

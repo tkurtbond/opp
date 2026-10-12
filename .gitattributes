@@ -1,2 +1,4 @@
 *.mod linguist-language=Oberon
 *.Mod linguist-language=Oberon
+# Test inputs are exact bytes: CRLF, tabs, control characters.
+tests/data/** -text

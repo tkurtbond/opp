@@ -42,7 +42,7 @@ endif
 BUILDDIR = poc-build
 PROGRAMS = Opp
 # opp's own modules, which poc compiles from source along with Opp.Mod.
-MODULES = OppText
+MODULES = OppText OppScanner
 BINDIR ?= $(HOME)/local/bin
 
 .PHONY: all clean test-poc test-verbose install uninstall

@@ -22,5 +22,7 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       Replace each file with its formatted text.
   -c, --check
       Write nothing; exit 1 and name each file that would change.
+  --tokens
+      List each file's tokens and comments instead of formatting it (a debugging aid).
   -h, --help
       Show this help and exit.

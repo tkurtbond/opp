@@ -42,6 +42,7 @@ it writes each formatted file to standard output in turn, unless
 | `--no-module-indent` | start a module's declarations and statements at column 1 |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
+| `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `-h`, `--help` | show the usage and exit 0 |
 
 `--one-per-line`, `--pack` and `--keep-lines` choose the statement mode;
@@ -357,15 +358,27 @@ Each phase ends with `make test`, `make -f pocGNUmakefile test-poc` and
   `opp-unknown-option` and `opp-not-implemented`; the last goes when
   Phase 3 makes opp format. Both builds pass them.
 
-### Phase 1: scanner
+### Phase 1: scanner (done 2026-10-12)
 
 - `OppScanner.Mod` as described, with poc's identifier characters and all
-  of voc's and poc's number forms.
-- A test driver mode (`opp --tokens`, kept as an undocumented debugging
-  aid) that lists tokens with their comments and flags, so the scanner has
-  fixtures of its own: comments leading, trailing and between tokens,
-  nested comments, blank lines, tabs, CRLF, both quote characters,
-  `1..5`, `0FFH`, `41X`, `1.5D10`, unterminated comments and strings.
+  of voc's and poc's number forms. A letter may follow a number at once
+  (`1THEN` is `1` and `THEN` to both compilers; voc's `vbeautify.Mod` has
+  one).
+- `opp --tokens` lists tokens with their comments and flags, one to a line,
+  control characters escaped. ArgParser lists every option in the usage,
+  so it is documented there as a debugging aid rather than hidden.
+- Fixtures `scan-*` on inputs in `tests/data/`: comments leading, trailing
+  and between tokens, multi-line and nested, before the module and after
+  its end; blank lines, tabs, CRLF and a form feed; both quote characters
+  and UTF-8; every number form; poc's identifiers; every symbol; and the
+  errors (unterminated comment and string, invalid character and number).
+- Checked over 644 `.Mod` files (poc's both branches, voc's compiler,
+  library and tools, and the other repos in `~/Repos/Oberon`): every
+  token and comment in order, white space aside, rebuilds each file
+  exactly; the voc and poc builds list identical tokens for all of them;
+  the only errors are in text after `END M.`, which formatting never
+  scans (`OPT.Mod`, `MultiArrays.Mod`, `MultiArrayRiders.Mod`,
+  `ethUnicode.Mod`).
 
 ### Phase 2: layout engine
 

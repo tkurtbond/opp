@@ -1,0 +1,37 @@
+# Comments: before the module, after a blank line, trailing (one and two),
+# leading on their own line, multi-line, nested, between tokens, after the end.
+program Opp
+arg --tokens
+arg tests/data/scan-comments.Mod
+status 0
+output
+  lead 1:1 newline (* before the module *)
+  lead 3:1 blank newline (* after a blank line *)
+4:1 keyword MODULE
+4:8 identifier Comments
+4:16 symbol ;
+  trail 4:18 (* trailing *)
+  trail 4:33 newline (* two trailing *)
+  lead 5:3 newline (* leading, own line *)
+6:3 keyword CONST
+6:9 identifier a
+6:11 symbol =
+6:13 number 1
+6:14 symbol ;
+  trail 6:16 multiline (* trailing,\n    on two lines *)
+7:21 identifier b
+7:23 symbol =
+7:25 number 2
+7:26 symbol ;
+  lead 9:3 blank newline (* nested (* inner *) still outer *)
+10:3 keyword VAR
+10:7 identifier x
+  trail 10:9 (* between *)
+10:23 symbol :
+10:25 identifier INTEGER
+10:32 symbol ;
+11:1 keyword END
+11:5 identifier Comments
+11:13 symbol .
+  trail 11:15 newline (* after the end *)
+12:1 end of text

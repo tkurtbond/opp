@@ -11,8 +11,9 @@ statements one per line, packs short ones onto shared lines, or keeps the
 author's own grouping. Before it writes anything it checks that its output
 has exactly the tokens and comments of its input.
 
-**Status: under construction.** Phase 0 (the repository, the builds and the
-command line) is done; opp does not format yet. `PLAN.md` has the design
+**Status: under construction.** Phases 0 (the repository, the builds and
+the command line) and 1 (the scanner, which `--tokens` shows) are done; opp
+does not format yet. `PLAN.md` has the design
 and the phases.
 
 ## Usage
@@ -34,6 +35,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `--no-module-indent` | start a module's declarations and statements at column 1 |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
+| `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `-h`, `--help` | show the usage and exit |
 
 Exit status: 0 success; 1 a syntax error, an unreadable file, or (with

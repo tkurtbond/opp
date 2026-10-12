@@ -35,7 +35,9 @@ Opp: ArgParser.o
 ArgParser.o: Err.o
 
 # opp's own modules, each built before the modules that import it.
-Opp: Err.o OppText.o
+Opp: Err.o OppText.o OppScanner.o
+
+OppScanner.o: OppText.o
 
 
 %: %.Mod

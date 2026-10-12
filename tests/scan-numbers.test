@@ -1,0 +1,64 @@
+# Every number form: decimal, hexadecimal, character, reals with E and D,
+# a 64-bit hexadecimal pattern, "1..5" as number, "..", number, and "1THEN".
+program Opp
+arg --tokens
+arg tests/data/scan-numbers.Mod
+status 0
+output
+1:1 keyword MODULE
+1:8 identifier Numbers
+1:15 symbol ;
+2:3 keyword CONST
+2:9 identifier a
+2:11 symbol =
+2:13 number 0
+2:14 symbol ;
+2:16 identifier b
+2:18 symbol =
+2:20 number 0FFH
+2:24 symbol ;
+2:26 identifier c
+2:28 symbol =
+2:30 number 41X
+2:33 symbol ;
+2:35 identifier d
+2:37 symbol =
+2:39 number 1.5
+2:42 symbol ;
+2:44 identifier e
+2:46 symbol =
+2:48 number 1.5D10
+2:54 symbol ;
+2:56 identifier f
+2:58 symbol =
+2:60 number 2.E-3
+2:65 symbol ;
+2:67 identifier g
+2:69 symbol =
+2:71 number 7.0E+2
+2:77 symbol ;
+3:5 identifier h
+3:7 symbol =
+3:9 number 0FFFFFFFFD76AA478H
+3:27 symbol ;
+4:3 keyword TYPE
+4:8 identifier T
+4:10 symbol =
+4:12 keyword ARRAY
+4:18 number 1
+4:19 symbol ..
+4:21 number 5
+4:23 keyword OF
+4:26 identifier CHAR
+4:30 symbol ;
+5:1 keyword BEGIN
+5:7 keyword IF
+5:10 identifier a
+5:12 symbol >
+5:14 number 1
+5:15 keyword THEN
+5:20 keyword END
+6:1 keyword END
+6:5 identifier Numbers
+6:12 symbol .
+7:1 end of text

@@ -90,6 +90,9 @@ poc accept:
   forward declarations for the parser's mutual recursion.
 - **Assigning a record that holds a pointer shares what it points to**;
   copy explicitly when a copy must be independent.
+- **Comments nest in Oberon.** A comment in opp's source that mentions
+  the comment delimiters in quotes opens a nested comment and swallows the
+  rest of the module; describe them in words instead.
 - Strings are `OppText.Text` (`POINTER TO ARRAY OF CHAR`, allocated to
   fit), never fixed arrays that could truncate a long comment or string.
 

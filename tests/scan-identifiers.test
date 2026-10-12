@@ -1,0 +1,46 @@
+# poc's identifiers with _ and $ (first character included); keywords are
+# upper case only; export marks * and -.
+program Opp
+arg --tokens
+arg tests/data/scan-identifiers.Mod
+status 0
+output
+1:1 keyword MODULE
+1:8 identifier Identifiers
+1:19 symbol ;
+2:3 keyword CONST
+2:9 identifier SS$_NORMAL
+2:20 symbol =
+2:22 number 1
+2:23 symbol ;
+2:25 identifier _x
+2:28 symbol =
+2:30 number 2
+2:31 symbol ;
+2:33 identifier DSC$W_LENGTH
+2:46 symbol =
+2:48 number 3
+2:49 symbol ;
+2:51 identifier Begin
+2:57 symbol =
+2:59 number 4
+2:60 symbol ;
+2:62 identifier end
+2:66 symbol =
+2:68 number 5
+2:69 symbol ;
+3:3 keyword VAR
+3:7 identifier v
+3:8 symbol -
+3:9 symbol :
+3:11 identifier INTEGER
+3:18 symbol ;
+3:20 identifier w
+3:21 symbol *
+3:22 symbol :
+3:24 identifier INTEGER
+3:31 symbol ;
+4:1 keyword END
+4:5 identifier Identifiers
+4:16 symbol .
+5:1 end of text

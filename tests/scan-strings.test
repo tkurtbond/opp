@@ -1,0 +1,35 @@
+# Strings in both quote characters, empty, one character, and UTF-8
+# (the e with an accent takes one column).
+program Opp
+arg --tokens
+arg tests/data/scan-strings.Mod
+status 0
+output
+1:1 keyword MODULE
+1:8 identifier Strings
+1:15 symbol ;
+2:3 keyword CONST
+2:9 identifier dq
+2:12 symbol =
+2:14 string "it's"
+2:20 symbol ;
+2:22 identifier sq
+2:25 symbol =
+2:27 string 'say "hi"'
+2:37 symbol ;
+2:39 identifier empty
+2:45 symbol =
+2:47 string ""
+2:49 symbol ;
+2:51 identifier one
+2:55 symbol =
+2:57 string "x"
+2:60 symbol ;
+2:62 identifier utf
+2:66 symbol =
+2:68 string "café"
+2:74 symbol ;
+3:1 keyword END
+3:5 identifier Strings
+3:12 symbol .
+4:1 end of text

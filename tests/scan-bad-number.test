@@ -1,0 +1,24 @@
+# Invalid numbers: hexadecimal digits without H, and a scale factor
+# without digits. The first error is reported.
+program Opp
+arg --tokens
+arg tests/data/scan-bad-number.Mod
+status 1
+output
+1:1 keyword MODULE
+1:8 identifier BadNumber
+1:17 symbol ;
+2:3 keyword CONST
+2:9 identifier a
+2:11 symbol =
+2:13 number 1F
+2:15 symbol ;
+2:17 identifier b
+2:19 symbol =
+2:21 number 2.5E
+2:25 symbol ;
+3:1 keyword END
+3:5 identifier BadNumber
+3:14 symbol .
+4:1 end of text
+tests/data/scan-bad-number.Mod:2:13: invalid number

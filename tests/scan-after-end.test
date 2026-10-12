@@ -1,0 +1,19 @@
+# --tokens scans to the end of the text, past the module's end; formatting
+# will not (PLAN.md, OppScanner), so this error will not stop it.
+program Opp
+arg --tokens
+arg tests/data/scan-after-end.Mod
+status 1
+output
+1:1 keyword MODULE
+1:8 identifier AfterEnd
+1:16 symbol ;
+2:1 keyword END
+2:5 identifier AfterEnd
+2:13 symbol .
+3:1 invalid character \x01
+3:2 invalid character \x02
+3:4 identifier fonts
+3:10 string "
+4:1 end of text
+tests/data/scan-after-end.Mod:3:1: invalid character
