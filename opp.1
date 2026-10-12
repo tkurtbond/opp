@@ -82,14 +82,55 @@ or
 .B drop
 it.
 .TP
-.BI \-\-align " what"
-What to do with the spaces an author lines things up with, such as
-columns of constants, or of trailing comments:
-.B keep
-them (the default), while the line still fits, or
-.B drop
-them, making each one space.
-opp does not line columns up itself.
+.BI \-\-align " words"
+What to line up, as words separated by commas; a later word wins over an
+earlier one, and the option can be given more than once.
+.RS
+.TP
+.BR const ", " type
+the
+.B =
+of constants, or of types;
+.TP
+.BR var ", " field
+the types of variables, or of fields;
+.TP
+.B init
+the
+.B :=
+of initializers;
+.TP
+.B comment
+trailing comments on lines next to each other;
+.TP
+.B case
+the bodies of
+.B CASE
+arms on their labels' lines, and of its
+.BR ELSE ;
+.TP
+.B all
+all of these;
+.TP
+.BR no \fIword\fR
+one space for that kind of word, as
+.B nocomment
+or
+.BR noall ;
+.TP
+.BR keep ", " drop
+elsewhere, keep the spaces an author lines things up with (the default),
+or make each one space.
+.RE
+.IP
+Declarations line up in runs: those of one section or record, up to a
+blank line.
+A line holding several declarations is left out of its run.
+Spaces are kept or added only where they do not make too long a line
+that fits without them, and they never change where lines break.
+For example,
+.B \-\-align all,nocomment
+lines up everything but trailing comments.
 .TP
 .B \-\-in\-place
 Replace each file with its formatted text.

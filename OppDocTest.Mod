@@ -401,14 +401,76 @@ BEGIN
             D.Cat3(Tx("aaa"), D.Line(),
                    D.Cat3(D.Space(), D.Widen(4), Tx("b")))),
         4, "aaa|b|");
+  Check("a line too long without its widening keeps it",
+        D.Cat3(D.Cat(Tx("a"), D.Space()), D.Widen(3),
+               D.Comment(T("(* long comment *)"), 1)),
+        10, "a   (* long comment *)|");
   Check("a widening with no space before it is ignored",
         D.Cat3(Tx("a"), D.Widen(4), Tx("b")), 80, "ab|")
 END Widths;
 
+(* "a" and then a pad of run and x, a line break, "bbb", and a pad and y. *)
+PROCEDURE TwoPads(run: D.Doc; x, y: ARRAY OF CHAR): D.Doc;
+BEGIN
+  RETURN D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Pad(run, 0)),
+                D.Cat3(Tx(x), D.HardLine(), Tx("bbb")),
+                D.Cat3(D.Space(), D.Pad(run, 0), Tx(y)))
+END TwoPads;
+
+(* A line, a trailing comment lined up in run, and a line break. *)
+PROCEDURE Commented(run: D.Doc; s: ARRAY OF CHAR; blank: BOOLEAN): D.Doc;
+  VAR br: D.Doc;
+BEGIN
+  IF blank THEN br := D.BlankLine() ELSE br := D.HardLine() END;
+  RETURN D.Cat3(D.Cat3(Tx(s), D.Space(), D.Pad(run, 0)),
+                D.Comment(T("(* c *)"), 1), br)
+END Commented;
+
+(* What opp lines up itself. *)
+PROCEDURE Pads;
+  VAR run, d: D.Doc;
+BEGIN
+  Check("pads line up", TwoPads(D.NewRun(FALSE), "x", "y"), 80, "a   x|bbb y|");
+  run := D.NewRun(FALSE);
+  d := D.Cat3(D.Cat3(Tx("bbb"), D.Space(), D.Pad(run, 0)), Tx("x"),
+              D.Cat3(D.HardLine(), Tx("a"), D.Space()));
+  Check("pads line up at the furthest column, wherever it is",
+        D.Cat3(d, D.Pad(run, 0), Tx("y")), 80, "bbb x|a   y|");
+  Check("a run that would make a line too long is not lined up",
+        TwoPads(D.NewRun(FALSE), "xxxx", "y"), 7, "a xxxx|bbb y|");
+  run := D.NewRun(FALSE);
+  d := D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Pad(run, 0)), Tx("x"),
+              D.Cat3(D.Space(), D.Pad(run, 3), Tx("y")));
+  d := D.Cat3(d, D.HardLine(), D.Cat3(Tx("bbbbbb"), D.Space(), D.Pad(run, 0)));
+  Check("pads sharing a line are left out of their run, with the author's gap",
+        D.Cat(d, Tx("z")), 80, "a x   y|bbbbbb z|");
+  run := D.NewRun(TRUE);
+  d := D.Cat3(Commented(run, "a", FALSE), Commented(run, "bbb", TRUE),
+              Commented(run, "cc", FALSE));
+  Check("trailing comments line up on lines next to each other", d, 80,
+        "a   (* c *)|bbb (* c *)||cc (* c *)|");
+  run := D.NewRun(TRUE);
+  d := D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Pad(run, 2)),
+              D.Comment(T("(* c *)"), 1), D.Cat(D.Space(), Tx("b")));
+  d := D.Cat3(d, D.HardLine(), Commented(run, "ccc", FALSE));
+  Check("a comment with text after it is left out, with the author's gap", d,
+        80, "a  (* c *) b|ccc (* c *)|");
+  Check("a widening that pushes a later aligned line too far is dropped",
+        D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Widen(3)),
+               D.Align(D.Group(D.Cat3(Tx("bb"), D.Line(), Tx("cccc")))),
+               D.Empty()),
+        6, "a bb|  cccc|");
+  Check("a widening that keeps every line within the width is kept",
+        D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Widen(3)),
+               D.Align(D.Group(D.Cat3(Tx("bb"), D.Line(), Tx("cc")))),
+               D.Empty()),
+        6, "a   bb|    cc|")
+END Pads;
+
 BEGIN
   passed := 0; total := 0;
   Basics; Indentation; Groups; LineBreaks; Fills; Choices; Comments;
-  Widths;
+  Widths; Pads;
   Out.Int(passed, 0); Out.Char("/"); Out.Int(total, 0);
   Out.String(" tests passed."); Out.Ln;
   Out.Flush;

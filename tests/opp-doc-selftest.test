@@ -73,5 +73,14 @@ ok - a trailing comment counts in whether a widened space fits
 ok - a widening is measured only up to the next possible break
 ok - a widening does not change whether a group breaks
 ok - a widening after a line break is ignored
+ok - a line too long without its widening keeps it
 ok - a widening with no space before it is ignored
-71/71 tests passed.
+ok - pads line up
+ok - pads line up at the furthest column, wherever it is
+ok - a run that would make a line too long is not lined up
+ok - pads sharing a line are left out of their run, with the author's gap
+ok - trailing comments line up on lines next to each other
+ok - a comment with text after it is left out, with the author's gap
+ok - a widening that pushes a later aligned line too far is dropped
+ok - a widening that keeps every line within the width is kept
+80/80 tests passed.

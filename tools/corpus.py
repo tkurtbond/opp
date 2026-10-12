@@ -5,7 +5,8 @@ usage: corpus.py OPP KNOWN-ERRORS DIRECTORY ...
 
 Formats every .Mod file under each DIRECTORY (the files git tracks there,
 or every one if it is not a git repository) in all three modes, and with
---case-bar add and drop, and with --align drop, at widths 60, 80 and 120, and checks for each
+--case-bar add and drop, and with --align drop, all and all,drop, at
+widths 60, 80 and 120, and checks for each
 that
 
   - opp succeeds: no syntax error (unless KNOWN-ERRORS lists the file) and
@@ -30,7 +31,8 @@ import subprocess
 import sys
 
 MODES = [['-1'], ['-p'], ['-k'], ['-1', '--case-bar', 'add'],
-         ['-k', '--case-bar', 'drop'], ['-p', '--align', 'drop']]
+         ['-k', '--case-bar', 'drop'], ['-p', '--align', 'drop'],
+         ['-1', '--align', 'all'], ['-k', '--align', 'all,drop']]
 WIDTHS = [60, 80, 120]
 
 

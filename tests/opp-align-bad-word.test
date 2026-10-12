@@ -1,0 +1,8 @@
+# --align rejects a word it does not know, even after good ones.
+program Opp
+arg --align
+arg const,nocase,nofoo
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: --align takes words separated by commas: keep, drop, all, const, type, var, field, init, comment or case, each of the last eight with or without no before it

@@ -33,6 +33,11 @@ CONST
   keepBar* = 0; addBar* = 1; dropBar* = 2;
   (* what to do with the spaces an author lined things up with *)
   keepAlign* = 0; dropAlign* = 1;
+  (* what --align can line up: the = of constants and of types, the types
+     of variables and of fields, the := of initializers, trailing
+     comments, and the bodies of CASE arms *)
+  alignConst* = 0; alignType* = 1; alignVar* = 2; alignField* = 3;
+  alignInit* = 4; alignComment* = 5; alignCase* = 6;
 
   (* what a list holds, for Element *)
   exprs = 0; braceElements = 1; caseLabels = 2;
@@ -43,7 +48,10 @@ TYPE
     mode*: INTEGER;
     moduleIndent*: BOOLEAN;
     caseBar*: INTEGER; (* keepBar, addBar or dropBar *)
-    align*: INTEGER (* keepAlign or dropAlign *)
+    align*: INTEGER; (* keepAlign or dropAlign, for the spaces of what
+                        lineUp and single do not hold *)
+    lineUp*, single*: SET (* what opp lines up, and what it gives one
+                             space *)
   END;
 
   Parser = POINTER TO ParserDesc;
@@ -54,6 +62,11 @@ TYPE
     eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
     caseBar, align: INTEGER;
+    lineUp, single: SET;
+    nextKind: INTEGER; (* what the space before the next token taken
+                          lines up, or -1 *)
+    nextRun: D.Doc; (* the run it lines up in *)
+    comments: D.Doc; (* the run of trailing comments *)
     ind: LONGINT; (* the indentation step *)
     cont: LONGINT; (* the indentation of a continued line *)
     limit: LONGINT; (* the last column to align a list to *)
@@ -163,9 +176,6 @@ BEGIN
   RETURN d
 END LeadDoc;
 
-(* The current token with its comments, which it consumes. item says that
-   it starts a statement, declaration or other item, where a blank line
-   before it is kept. *)
 (* The spaces of a gap of n columns in the source, kept as the author's
    alignment unless --align drop. *)
 PROCEDURE Gap(p: Parser; n: LONGINT): D.Doc;
@@ -173,6 +183,27 @@ BEGIN
   IF (p.align = keepAlign) & (n > 1) THEN RETURN D.Widen(n) END;
   RETURN NIL
 END Gap;
+
+(* The spaces of a gap of n columns before something of kind, lined up in
+   run if --align says so. *)
+PROCEDURE KindGap(p: Parser; kind: INTEGER; run: D.Doc; n: LONGINT): D.Doc;
+BEGIN
+  IF kind IN p.single THEN RETURN NIL
+  ELSIF ~(kind IN p.lineUp) THEN RETURN Gap(p, n)
+  ELSIF p.align = keepAlign THEN RETURN D.Pad(run, n)
+  END;
+  RETURN D.Pad(run, 0)
+END KindGap;
+
+(* The space before the next token taken is one of kind, in run. *)
+PROCEDURE Mark(p: Parser; kind: INTEGER; run: D.Doc);
+BEGIN
+  p.nextKind := kind; p.nextRun := run
+END Mark;
+
+(* The current token with its comments, which it consumes. item says that
+   it starts a statement, declaration or other item, where a blank line
+   before it is kept. *)
 
 PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
   VAR t: S.Token; d: D.Doc; c: S.Comment;
@@ -186,11 +217,21 @@ BEGIN
   ELSIF t.lead # NIL THEN
     d := D.Cat(d, D.HardLine())
   END;
-  d := D.Cat(d, Gap(p, t.gap));
+  IF p.nextKind >= 0 THEN
+    d := D.Cat(d, KindGap(p, p.nextKind, p.nextRun, t.gap));
+    p.nextKind := -1
+  ELSE
+    d := D.Cat(d, Gap(p, t.gap))
+  END;
   d := D.Cat(d, D.TextOf(t.text));
   c := t.trail;
   WHILE c # NIL DO
-    d := D.Cat3(d, D.Space(), Gap(p, c.gap));
+    d := D.Cat(d, D.Space());
+    IF c = t.trail THEN
+      d := D.Cat(d, KindGap(p, alignComment, p.comments, c.gap))
+    ELSE
+      d := D.Cat(d, Gap(p, c.gap))
+    END;
     d := D.Cat(d, D.Comment(c.text, c.column));
     IF c.newlineAfter THEN d := D.Cat(d, D.TrailBreak()) END;
     c := c.next
@@ -588,13 +629,16 @@ BEGIN
   RETURN d
 END FormalPars;
 
-(* [IdentList ":" Type [":=" Expr]] *)
-PROCEDURE FieldList(p: Parser): D.Doc;
+(* [IdentList ":" Type [":=" Expr]], its type lined up in types, its
+   initializer in inits *)
+PROCEDURE FieldList(p: Parser; types, inits: D.Doc): D.Doc;
   VAR d: D.Doc;
 BEGIN
   d := IdentList(p, TRUE);
-  Put(d, Expect(p, S.colon)); Put(d, D.Space()); Put(d, Type(p));
+  Put(d, Expect(p, S.colon)); Put(d, D.Space());
+  Mark(p, alignField, types); Put(d, Type(p));
   IF Is(p, S.becomes) THEN
+    Mark(p, alignInit, inits);
     d := D.Cat3(d, D.Space(), Tok(p)); d := D.Cat3(d, D.Space(), Expr(p))
   END;
   RETURN d
@@ -604,9 +648,10 @@ END FieldList;
    field list to a line, nested from the line the record starts on. An
    empty field list's semicolon is dropped, but one before END is kept. *)
 PROCEDURE RecordType(p: Parser): D.Doc;
-  VAR d, fields, lead: D.Doc; f: D.FillBuilder; any: BOOLEAN;
+  VAR d, fields, lead, types, inits: D.Doc; f: D.FillBuilder; any: BOOLEAN;
 BEGIN
   d := Tok(p); Put(d, SysFlag(p));
+  types := D.NewRun(FALSE); inits := D.NewRun(FALSE);
   IF Is(p, S.lparen) THEN
     Put(d, D.Space()); Put(d, Tok(p)); Put(d, Qualident(p));
     Put(d, Expect(p, S.rparen))
@@ -615,7 +660,10 @@ BEGIN
   LOOP
     IF Is(p, S.ident) THEN
       IF any THEN D.Break(f) END;
-      D.Add(f, FieldList(p)); any := TRUE;
+      IF p.tok.blankBefore THEN (* a blank line ends a run *)
+        types := D.NewRun(FALSE); inits := D.NewRun(FALSE)
+      END;
+      D.Add(f, FieldList(p, types, inits)); any := TRUE;
       IF Is(p, S.semicolon) THEN D.Add(f, Tok(p)) ELSE EXIT END
     ELSIF Is(p, S.semicolon) THEN
       Drop(p)
@@ -681,13 +729,18 @@ BEGIN
   RETURN D.Line()
 END BodyBreak;
 
-PROCEDURE CaseArm(p: Parser): D.Doc;
+(* An arm, its body lined up in run when on the labels' line *)
+PROCEDURE CaseArm(p: Parser; run: D.Doc): D.Doc;
   VAR d, body, br: D.Doc;
 BEGIN
   IF Is(p, S.bar) OR Is(p, S.else) OR Is(p, S.end) THEN RETURN NIL END;
   d := ListFill(p, caseLabels); Put(d, Expect(p, S.colon));
   br := BodyBreak(p);
+  IF ~Is(p, S.bar) & ~Is(p, S.else) & ~Is(p, S.end) THEN
+    Mark(p, alignCase, run)
+  END;
   body := BodySeq(p);
+  p.nextKind := -1; (* a body of empty statements took no token *)
   IF body # NIL THEN d := D.Group(D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))) END;
   RETURN d
 END CaseArm;
@@ -705,8 +758,10 @@ END BarPad;
 (* CASE Expr OF arm {"|" arm} [ELSE StatementSeq] END; always broken *)
 PROCEDURE CaseStatement(p: Parser): D.Doc;
   VAR
-    d, arm, arms, body, br, lead: D.Doc; bar: D.Doc; k: INTEGER; added: BOOLEAN;
+    d, arm, arms, body, br, lead: D.Doc; bar, run: D.Doc; k: INTEGER;
+    added: BOOLEAN;
 BEGIN
+  run := D.NewRun(FALSE);
   d := Tok(p);
   d := D.Cat3(d, D.Space(), Expr(p));
   d := D.Cat3(d, D.Space(), Expect(p, S.of));
@@ -717,9 +772,9 @@ BEGIN
   ELSIF p.caseBar = addBar THEN
     lead := D.TextOf(OppText.New("|")); added := TRUE
   END;
-  arm := CaseArm(p);
+  arm := CaseArm(p, run);
   WHILE (arm = NIL) & Is(p, S.bar) DO (* empty arms *)
-    Drop(p); arm := CaseArm(p)
+    Drop(p); arm := CaseArm(p, run)
   END;
   IF arm = NIL THEN
     IF (lead # NIL) & ~added THEN arms := D.Cat(D.HardLine(), lead) END
@@ -731,22 +786,26 @@ BEGIN
   WHILE Is(p, S.bar) DO
     k := PeekKind(p);
     IF (arms = NIL) OR (k = S.bar) OR (k = S.else) OR (k = S.end) THEN
-      Drop(p); arm := CaseArm(p);
+      Drop(p); arm := CaseArm(p, run);
       IF arm # NIL THEN
         arms := D.Cat(arms, D.Nest(p.ind, D.Cat(D.HardLine(), arm)))
       END
     ELSE
+      IF p.tok.blankBefore THEN run := D.NewRun(FALSE) END;
       bar := TokItem(p, TRUE);
-      arm := CaseArm(p);
+      arm := CaseArm(p, run);
       arms := D.Cat(arms,
           D.Cat3(D.HardLine(), bar, D.Cat(BarPad(p), D.Nest(p.ind, arm))))
     END
   END;
   d := D.Cat(d, arms);
   IF Is(p, S.else) THEN
+    IF p.tok.blankBefore THEN run := D.NewRun(FALSE) END;
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
     br := BodyBreak(p);
+    IF ~Is(p, S.end) THEN Mark(p, alignCase, run) END;
     body := BodySeq(p);
+    p.nextKind := -1;
     IF body # NIL THEN d := D.Cat(d, D.Group(D.Nest(p.ind, D.Cat(br, body))))
     END
   ELSE
@@ -922,24 +981,33 @@ END StatementSeq;
    keyword's line only if they all are, and fit. *)
 PROCEDURE Section(p: Parser): D.Doc;
   VAR
-    kw, d, pre: D.Doc; q: Seq; it: Item; kind, n: INTEGER;
+    kw, d, pre, run, inits: D.Doc; q: Seq; it: Item; kind, n: INTEGER;
     kwLine, firstLine: LONGINT;
 BEGIN
   kind := p.tok.kind; kwLine := p.tok.line;
   pre := ItemLead(p);
   kw := Tok(p);
   InitSeq(q); n := 0; firstLine := p.tok.line;
+  run := D.NewRun(FALSE); inits := D.NewRun(FALSE);
   WHILE Is(p, S.ident) DO
     it.startLine := p.tok.line; it.simple := TRUE;
+    IF p.tok.blankBefore THEN (* a blank line ends a run *)
+      run := D.NewRun(FALSE); inits := D.NewRun(FALSE)
+    END;
     it.lead := ItemLead(p);
     IF kind = S.var THEN
       d := IdentList(p, TRUE); Put(d, Expect(p, S.colon));
+      Mark(p, alignVar, run);
       d := D.Cat3(d, D.Space(), Type(p));
       IF Is(p, S.becomes) THEN
+        Mark(p, alignInit, inits);
         d := D.Cat3(d, D.Space(), Tok(p)); d := D.Cat3(d, D.Space(), Expr(p))
       END
     ELSE
       d := IdentDef(p, TRUE);
+      IF kind = S.const THEN Mark(p, alignConst, run)
+      ELSE Mark(p, alignType, run)
+      END;
       d := D.Cat3(d, D.Space(), Expect(p, S.eql));
       IF kind = S.const THEN d := D.Cat3(d, D.Space(), Expr(p))
       ELSE d := D.Cat3(d, D.Space(), Type(p))
@@ -1164,6 +1232,8 @@ BEGIN
   NEW(p.eofTok); p.eofTok.kind := S.eof; p.eofTok.text := OppText.New("");
   p.eofTok.lead := NIL; p.eofTok.trail := NIL;
   p.mode := opts.mode; p.caseBar := opts.caseBar; p.align := opts.align;
+  p.lineUp := opts.lineUp; p.single := opts.single; p.nextKind := -1;
+  p.nextRun := NIL; p.comments := D.NewRun(TRUE);
   p.ind := opts.indent;
   p.cont := 2 * opts.indent;
   p.limit := opts.width * 2 DIV 3;

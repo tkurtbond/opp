@@ -77,12 +77,65 @@ BEGIN
   RETURN TRUE
 END SetCaseBar;
 
-PROCEDURE SetAlign(VAR val: ARRAY OF CHAR): BOOLEAN;
+(* The kinds of alignment word names, as a set: all of them for all, none
+   if it names none. *)
+PROCEDURE AlignKinds(VAR word: ARRAY OF CHAR): SET;
 BEGIN
-  IF val = "keep" THEN opts.align := OppFormat.keepAlign
-  ELSIF val = "drop" THEN opts.align := OppFormat.dropAlign
-  ELSE alignOK := FALSE
+  IF word = "const" THEN RETURN {OppFormat.alignConst}
+  ELSIF word = "type" THEN RETURN {OppFormat.alignType}
+  ELSIF word = "var" THEN RETURN {OppFormat.alignVar}
+  ELSIF word = "field" THEN RETURN {OppFormat.alignField}
+  ELSIF word = "init" THEN RETURN {OppFormat.alignInit}
+  ELSIF word = "comment" THEN RETURN {OppFormat.alignComment}
+  ELSIF word = "case" THEN RETURN {OppFormat.alignCase}
+  ELSIF word = "all" THEN
+    RETURN {OppFormat.alignConst..OppFormat.alignCase}
   END;
+  RETURN {}
+END AlignKinds;
+
+(* One word of --align: keep or drop, for the author's spaces; a kind, or
+   all, for opp to line up; no and a kind, or noall, for one space. *)
+PROCEDURE AlignWord(VAR word: ARRAY OF CHAR);
+  VAR rest: ARRAY 32 OF CHAR; i: LONGINT; k: SET;
+BEGIN
+  IF word = "keep" THEN opts.align := OppFormat.keepAlign
+  ELSIF word = "drop" THEN opts.align := OppFormat.dropAlign
+  ELSE
+    k := AlignKinds(word);
+    IF k # {} THEN
+      opts.lineUp := opts.lineUp + k; opts.single := opts.single - k
+    ELSIF (word[0] = "n") & (word[1] = "o") THEN
+      i := 2;
+      WHILE (word[i] # 0X) & (i - 2 < LEN(rest) - 1) DO
+        rest[i - 2] := word[i]; INC(i)
+      END;
+      rest[i - 2] := 0X;
+      k := AlignKinds(rest);
+      IF k = {} THEN alignOK := FALSE END;
+      opts.single := opts.single + k; opts.lineUp := opts.lineUp - k
+    ELSE
+      alignOK := FALSE
+    END
+  END
+END AlignWord;
+
+(* --align's value: words separated by commas, each overriding those
+   before it. *)
+PROCEDURE SetAlign(VAR val: ARRAY OF CHAR): BOOLEAN;
+  VAR word: ARRAY 32 OF CHAR; i, j: LONGINT;
+BEGIN
+  i := 0;
+  REPEAT
+    j := 0;
+    WHILE (i < LEN(val)) & (val[i] # 0X) & (val[i] # ",") DO
+      IF j < LEN(word) - 1 THEN word[j] := val[i]; INC(j) END;
+      INC(i)
+    END;
+    word[j] := 0X;
+    AlignWord(word);
+    IF (i < LEN(val)) & (val[i] = ",") THEN INC(i) ELSE i := -1 END
+  UNTIL i < 0;
   RETURN TRUE
 END SetAlign;
 
@@ -419,7 +472,8 @@ END FormatFile;
 BEGIN
   opts.width := 80; opts.indent := 2; opts.mode := OppFormat.onePerLine;
   opts.moduleIndent := TRUE; opts.caseBar := OppFormat.keepBar;
-  opts.align := OppFormat.keepAlign; caseBarOK := TRUE; alignOK := TRUE;
+  opts.align := OppFormat.keepAlign; opts.lineUp := {}; opts.single := {};
+  caseBarOK := TRUE; alignOK := TRUE;
   inPlace := FALSE; check := FALSE; tokens := FALSE;
   damage := noDamage;
   status := 0;
@@ -458,7 +512,7 @@ BEGIN
                                  SetCaseBar));
   parser.AddOption(
       ArgParser.MakeStringOption(0X, "align",
-                                 "The spaces an author lines things up with: keep them while the line fits (keep, the default), or make each one space (drop).",
+                                 "What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.",
                                  SetAlign));
   parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",
@@ -485,7 +539,10 @@ BEGIN
     IF AddFile(0, stdin) THEN END
   END;
   IF ~caseBarOK THEN UsageError("--case-bar takes keep, add or drop") END;
-  IF ~alignOK THEN UsageError("--align takes keep or drop") END;
+  IF ~alignOK THEN
+    UsageError(
+        "--align takes words separated by commas: keep, drop, all, const, type, var, field, init, comment or case, each of the last eight with or without no before it")
+  END;
   IF inPlace & check THEN
     UsageError("--in-place and --check cannot be used together")
   END;

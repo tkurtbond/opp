@@ -24,7 +24,20 @@ MODULE Align;   (* columns an author lines up *)
 
   VAR
     count:     INTEGER;  (* items seen *)
-    total: LONGINT; (* their sum, which can be much longer than anything the line can hold *)
+    total:     LONGINT;  (* their sum, which can be much longer than anything the line can hold *)
+
+  TYPE
+    Point = RECORD
+      x, y: INTEGER := 0;
+      name: ARRAY 16 OF CHAR;
+      weight: REAL := 1.0
+    END;
+    Vector = ARRAY 3 OF INTEGER;
+
+  VAR
+    origin: Point;
+    limit: INTEGER := 100;
+    scale: REAL := 2.5;   (* poc's initializers *)
 
   PROCEDURE Sym(ch: CHAR): INTEGER;
     VAR s: INTEGER;

@@ -23,7 +23,7 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
   --case-bar <arg>
       A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).
   --align <arg>
-      The spaces an author lines things up with: keep them while the line fits (keep, the default), or make each one space (drop).
+      What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.
   --in-place
       Replace each file with its formatted text.
   -c, --check

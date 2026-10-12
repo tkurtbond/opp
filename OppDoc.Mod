@@ -23,6 +23,10 @@ MODULE OppDoc;
    item after it does not fit on the current line, or when the item before
    it did not stay on the line it started on. A FillBuilder assembles one.
 
+   Alignment adds extra spaces (Widen, Pad) that no layout decision
+   counts, so they never change where lines break; Render renders until
+   none makes a line too long (PLAN.md, "OppDoc").
+
    Each node is used once: a node in a concatenation is linked to the next
    by its next field, so a node must never be put in two places. *)
 
@@ -33,7 +37,8 @@ CONST
   text = 0; space = 1; line = 2; softLine = 3; hardLine = 4; blankLine = 5;
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
-  trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19;
+  trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19; pad = 20;
+  run = 21;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -58,8 +63,25 @@ TYPE
     last: Doc; (* concat: the last part *)
     ref: Doc; (* fillLine: the mark before the item before it;
                  choiceLine, keptLine: its choice; softBreak: its
-                             fill *)
-    next: Doc (* the next part of a concatenation *)
+                 fill; pad: its run *)
+    next: Doc; (* the next part of a concatenation *)
+
+    (* alignment; widen: n is its width; pad: n is the author's gap, used
+       when it is excluded; run, and a pad that starts a run of lines next
+       to each other: n is the column the run lines up at, limit the next
+       pass's *)
+    on: BOOLEAN; (* widen, excluded pad: its spaces are written; run: it
+                    is lined up *)
+    adjacent: BOOLEAN; (* run: lines next to each other line up *)
+    excluded: BOOLEAN; (* pad: it shares its line with another of its run,
+                          or with text after its comment *)
+    midLine: BOOLEAN; (* pad: text follows what follows it on its line *)
+    line, col, extra: LONGINT; (* widen, pad, as the last pass met it: its
+                                  line, its column after one space, and
+                                  the extra spaces it wrote *)
+    sub: Doc; (* pad: what holds its run's column, its run or the pad
+                 that starts its lines *)
+    link: Doc (* widen, pad: the next the last pass met *)
   END;
 
   FillBuilder* = RECORD
@@ -77,8 +99,12 @@ TYPE
     mode: INTEGER;
     doc: Doc;
     chain: BOOLEAN;
+    shift: LONGINT; (* the extra spaces before ind on its lines *)
+    origin: LONGINT; (* the line whose extra spaces shift them, or -1 *)
     below: Frame
   END;
+
+  Lines = POINTER TO ARRAY OF LONGINT;
 
   Renderer = RECORD
     out: OppText.Buffer;
@@ -88,7 +114,20 @@ TYPE
     pendingBreaks: INTEGER; (* 0, or 1 for a line break, 2 for a blank line *)
     pendingIndent: LONGINT; (* the indentation of the pending line break *)
     pendingSpaces: LONGINT;
-    lastLineBlank: BOOLEAN (* the line before the current one is empty *)
+    pendingPad: LONGINT; (* extra spaces after the pending spaces *)
+    pendingShift, pendingOrigin: LONGINT; (* the pending line break's
+                                              frame's *)
+    extra: LONGINT; (* extra spaces written on the current line *)
+    shift, origin: LONGINT; (* the current frame's *)
+    lastLineBlank: BOOLEAN; (* the line before the current one is empty *)
+    first: BOOLEAN; (* the first pass *)
+    lineUp: BOOLEAN; (* pads line up their runs *)
+    met, lastMet: Doc; (* the widens and pads this pass met *)
+    lastPad: Doc; (* the last pad met on the current line *)
+    padTexts: INTEGER; (* texts and comments written after it *)
+    lineCol, lineExtra, lineOrigin: Lines (* each line's width, extra
+                                             spaces, and the line its
+                                             shift comes from *)
   END;
 
 (* ---- Building documents ---- *)
@@ -99,6 +138,8 @@ BEGIN
   NEW(d); d.kind := kind; d.text := NIL; d.width := 0; d.n := 0; d.limit := 0;
   d.multiLine := FALSE; d.hard := FALSE;
   d.child := NIL; d.last := NIL; d.ref := NIL; d.next := NIL;
+  d.on := FALSE; d.adjacent := FALSE; d.excluded := FALSE; d.line := -1;
+  d.col := 0; d.extra := 0; d.sub := NIL; d.link := NIL;
   RETURN d
 END NewNode;
 
@@ -189,15 +230,35 @@ BEGIN
 END ChoiceLine;
 
 (* Nothing, or, after a space on the same line, that space widened to n
-   columns if what follows still fits on the line up to its next possible
-   break: an author's alignment kept. Layout decisions ignore it, so that
-   whether a line breaks never depends on it. *)
+   columns unless that makes a line too long: an author's alignment kept.
+   Layout decisions ignore it, so it never changes where lines break. *)
 PROCEDURE Widen*(n: LONGINT): Doc;
   VAR d: Doc;
 BEGIN
   d := NewNode(widen); d.n := n;
   RETURN d
 END Widen;
+
+(* A run of pads that line up: the pads of one run, or, if adjacent, those
+   on lines next to each other. *)
+PROCEDURE NewRun*(adjacent: BOOLEAN): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(run); d.adjacent := adjacent; d.on := TRUE;
+  RETURN d
+END NewRun;
+
+(* Nothing, or, after a space on the same line, that space widened so that
+   what follows starts at the same column as after the other pads of run,
+   unless that makes a line too long. A pad on a line with another of its
+   run, or before a comment with text after it on its line, is not lined
+   up: it is Widen(gap). Layout decisions ignore it. *)
+PROCEDURE Pad*(run: Doc; gap: LONGINT): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(pad); d.ref := run; d.n := gap;
+  RETURN d
+END Pad;
 
 (* A ChoiceLine(c) while c is soft; once c is decided hard, a line break
    only if what follows it does not fit on the line, as Group(Line()): the
@@ -384,7 +445,7 @@ PROCEDURE Push(VAR stack: Frame; ind: LONGINT; mode: INTEGER; d: Doc;
 BEGIN
   IF d # NIL THEN
     NEW(f); f.ind := ind; f.mode := mode; f.doc := d; f.chain := chain;
-    f.below := stack;
+    f.shift := 0; f.origin := -1; f.below := stack;
     stack := f
   END
 END Push;
@@ -461,7 +522,7 @@ BEGIN
         IF d.hard THEN Push(local, ind, broken, d.child, TRUE)
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
-    | mark, choice, softBreak, widen:
+    | mark, choice, softBreak, widen, pad, run:
     END
   END
 END Fits;
@@ -497,28 +558,54 @@ BEGIN
   WHILE n > 0 DO OppText.AppendChar(r.out, " "); INC(r.col); DEC(n) END
 END Spaces;
 
+(* Records the line just ended, with its width and extra spaces, and starts
+   the next, whose shift comes from no line. *)
+PROCEDURE EndLine(VAR r: Renderer);
+  VAR a, b, c: Lines; i: LONGINT;
+BEGIN
+  IF r.lineNo + 1 >= LEN(r.lineCol^) THEN
+    NEW(a, 2 * LEN(r.lineCol^)); NEW(b, LEN(a^)); NEW(c, LEN(a^));
+    FOR i := 0 TO LEN(r.lineCol^) - 1 DO
+      a[i] := r.lineCol[i]; b[i] := r.lineExtra[i]; c[i] := r.lineOrigin[i]
+    END;
+    r.lineCol := a; r.lineExtra := b; r.lineOrigin := c
+  END;
+  r.lineCol[r.lineNo] := r.col; r.lineExtra[r.lineNo] := r.extra;
+  INC(r.lineNo);
+  r.lineOrigin[r.lineNo] := -1
+END EndLine;
+
 (* Writes the pending line breaks or spaces, as text is about to follow. *)
 PROCEDURE Flush(VAR r: Renderer);
 BEGIN
   IF r.pendingBreaks > 0 THEN
     IF r.out.len > 0 THEN
-      OppText.AppendChar(r.out, 0AX); INC(r.lineNo);
-      r.lastLineBlank := r.col = 0;
+      OppText.AppendChar(r.out, 0AX); r.lastLineBlank := r.col = 0;
+      EndLine(r);
       IF (r.pendingBreaks = 2) & ~r.lastLineBlank THEN
-        OppText.AppendChar(r.out, 0AX); INC(r.lineNo); r.lastLineBlank := TRUE
+        OppText.AppendChar(r.out, 0AX); r.col := 0; r.extra := 0; EndLine(r);
+        r.lastLineBlank := TRUE
       END
     END;
-    r.col := 0; r.pendingBreaks := 0; r.pendingSpaces := 0;
-    Spaces(r, r.pendingIndent)
+    r.col := 0; r.pendingBreaks := 0; r.pendingSpaces := 0; r.pendingPad := 0;
+    r.lastPad := NIL;
+    r.extra := r.pendingShift;
+    IF r.pendingShift > 0 THEN r.lineOrigin[r.lineNo] := r.pendingOrigin END;
+    Spaces(r, r.pendingIndent + r.pendingShift)
   ELSE
-    Spaces(r, r.pendingSpaces); r.pendingSpaces := 0
+    INC(r.extra, r.pendingPad);
+    Spaces(r, r.pendingSpaces + r.pendingPad);
+    r.pendingSpaces := 0; r.pendingPad := 0
   END
 END Flush;
 
+(* A line break at indentation ind, shifted as the current frame is. *)
 PROCEDURE NewLine(VAR r: Renderer; ind: LONGINT; breaks: INTEGER);
 BEGIN
   IF breaks > r.pendingBreaks THEN r.pendingBreaks := breaks END;
-  r.pendingIndent := ind; r.pendingSpaces := 0
+  r.pendingIndent := ind; r.pendingShift := r.shift;
+  r.pendingOrigin := r.origin;
+  r.pendingSpaces := 0; r.pendingPad := 0
 END NewLine;
 
 (* The line the next text will be on: the line breaks Flush will write. *)
@@ -533,30 +620,52 @@ BEGIN
   RETURN n
 END NextLine;
 
-(* The column the next text will start at. *)
+(* The column the next text will start at, without the extra spaces of
+   alignment: the column every layout decision uses. *)
 PROCEDURE Column(VAR r: Renderer): LONGINT;
 BEGIN
   IF r.pendingBreaks > 0 THEN
     RETURN r.pendingIndent
   ELSE
-    RETURN r.col + r.pendingSpaces
+    RETURN r.col - r.extra + r.pendingSpaces
   END
 END Column;
 
+(* The column the next text will really start at. *)
+PROCEDURE RealColumn(VAR r: Renderer): LONGINT;
+BEGIN
+  IF r.pendingBreaks > 0 THEN
+    RETURN r.pendingIndent + r.pendingShift
+  ELSE
+    RETURN r.col + r.pendingSpaces + r.pendingPad
+  END
+END RealColumn;
+
+(* Notes, after a Flush, that text is written: a second text after a pad
+   on its line puts the pad mid-line. *)
+PROCEDURE Written(VAR r: Renderer);
+BEGIN
+  IF r.lastPad # NIL THEN
+    INC(r.padTexts);
+    IF r.padTexts = 2 THEN r.lastPad.midLine := TRUE; r.lastPad := NIL END
+  END
+END Written;
+
 PROCEDURE EmitText(VAR r: Renderer; t: OppText.Text; width: LONGINT);
 BEGIN
-  Flush(r);
+  Flush(r); Written(r);
   OppText.AppendText(r.out, t); INC(r.col, width)
 END EmitText;
 
 (* A comment: its first line here, and each later line moved by as many
    columns as the first line moved from where it was in the source, with
-   the white space at the end of each line dropped. *)
+   the white space at the end of each line dropped. Its later lines owe
+   their extra spaces to its first line's. *)
 PROCEDURE EmitComment(VAR r: Renderer; d: Doc);
-  VAR t: OppText.Text; i, j, k, delta, lead: LONGINT;
+  VAR t: OppText.Text; i, j, k, delta, lead, first: LONGINT;
 BEGIN
-  Flush(r);
-  t := d.text;
+  Flush(r); Written(r);
+  t := d.text; first := r.lineNo;
   delta := r.col + 1 - d.n;
   i := 0;
   LOOP
@@ -590,27 +699,64 @@ BEGIN
       END
     END;
     IF t[j] = 0X THEN EXIT END;
-    OppText.AppendChar(r.out, 0AX); INC(r.lineNo);
-    r.lastLineBlank := r.col = 0; r.col := 0;
+    OppText.AppendChar(r.out, 0AX); r.lastLineBlank := r.col = 0;
+    EndLine(r);
+    IF r.extra > 0 THEN r.lineOrigin[r.lineNo] := first END;
+    r.col := 0;
     i := j + 1
   END
 END EmitComment;
 
-(* d laid out within width columns, ending with one line break. *)
-PROCEDURE Render*(d: Doc; width: LONGINT): OppText.Buffer;
-  VAR
-    r: Renderer; stack, rest: Frame; x, item, nothing: Doc; ind, c: LONGINT;
-    mode: INTEGER;
-    strict, end: BOOLEAN;
+(* Push for the renderer: d at ind, shifted as the current frame is. *)
+PROCEDURE PushIn(VAR stack: Frame; VAR r: Renderer; ind: LONGINT; mode: INTEGER;
+                 d: Doc);
 BEGIN
-  Propagate(d, strict, end);
+  Push(stack, ind, mode, d, TRUE);
+  IF d # NIL THEN stack.shift := r.shift; stack.origin := r.origin END
+END PushIn;
+
+(* d indented to the column it starts at, its shift the extra spaces
+   before that column. *)
+PROCEDURE PushAligned(VAR stack: Frame; VAR r: Renderer; mode: INTEGER; d: Doc);
+  VAR c: LONGINT;
+BEGIN
+  c := Column(r);
+  Push(stack, c, mode, d, TRUE);
+  IF d # NIL THEN
+    stack.shift := RealColumn(r) - c;
+    IF stack.shift > 0 THEN stack.origin := NextLine(r) END
+  END
+END PushAligned;
+
+(* Adds x, a widen or pad that met a space, to the pass's list. *)
+PROCEDURE Met(VAR r: Renderer; x: Doc);
+BEGIN
+  x.link := NIL;
+  IF r.met = NIL THEN r.met := x ELSE r.lastMet.link := x END;
+  r.lastMet := x
+END Met;
+
+(* One rendering of d: the layout is the same in every pass, as only the
+   extra spaces differ. *)
+PROCEDURE Pass(d: Doc; width: LONGINT; VAR r: Renderer);
+  VAR
+    stack, rest: Frame; x, item, nothing: Doc; ind, c: LONGINT;
+    mode: INTEGER;
+BEGIN
   nothing := NewNode(text); nothing.text := OppText.New(""); nothing.width := 0;
   r.out := OppText.NewBuffer(); r.width := width; r.col := 0; r.lineNo := 0;
   r.pendingBreaks := 0; r.pendingIndent := 0; r.pendingSpaces := 0;
-  r.lastLineBlank := FALSE;
+  r.pendingPad := 0; r.pendingShift := 0; r.pendingOrigin := -1;
+  r.extra := 0; r.shift := 0; r.origin := -1;
+  r.lastLineBlank := FALSE; r.met := NIL; r.lastMet := NIL; r.lastPad := NIL;
+  IF r.lineCol = NIL THEN
+    NEW(r.lineCol, 256); NEW(r.lineExtra, 256); NEW(r.lineOrigin, 256)
+  END;
+  r.lineOrigin[0] := -1;
   stack := NIL;
   Push(stack, 0, broken, d, FALSE);
   WHILE stack # NIL DO
+    r.shift := stack.shift; r.origin := stack.origin;
     x := Pop(stack, ind, mode);
     CASE x.kind OF
       text: EmitText(r, x.text, x.width)
@@ -623,11 +769,26 @@ BEGIN
         ELSE
           NewLine(r, ind, 1)
         END
-    | widen: (* a trailing comment counts here, as it is the alignment's
-                 point; spaces pending before a line break are never written *)
-        IF (r.pendingSpaces = 1) & (x.n > 1)
-            & Fits(nothing, stack, width - Column(r) - (x.n - 1), TRUE) THEN
-          r.pendingSpaces := x.n
+    | widen:
+        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (x.n > 1) THEN
+          IF r.first THEN x.on := TRUE END;
+          x.line := NextLine(r); x.extra := 0;
+          IF x.on THEN x.extra := x.n - 1 END;
+          r.pendingPad := x.extra; Met(r, x)
+        END
+    | pad:
+        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) THEN
+          IF r.first THEN
+            x.excluded := FALSE; x.midLine := FALSE; x.sub := NIL;
+            r.lastPad := x; r.padTexts := 0
+          END;
+          x.line := NextLine(r); x.col := RealColumn(r); x.extra := 0;
+          IF x.excluded THEN
+            IF x.on & (x.n > 1) THEN x.extra := x.n - 1 END
+          ELSIF r.lineUp & (x.sub # NIL) & x.sub.on & (x.sub.n > x.col) THEN
+            x.extra := x.sub.n - x.col
+          END;
+          r.pendingPad := x.extra; Met(r, x)
         END
     | keptLine:
         IF x.ref.n = 0 THEN
@@ -680,30 +841,177 @@ BEGIN
             NewLine(r, ind, 1)
           END
         END
-    | nest: Push(stack, ind + x.n, mode, x.child, TRUE)
-    | align: Push(stack, Column(r), mode, x.child, TRUE)
+    | nest: PushIn(stack, r, ind + x.n, mode, x.child)
+    | align: PushAligned(stack, r, mode, x.child)
     | alignOrNest:
         c := Column(r);
         IF (c <= x.limit)
             & ((mode = flat) OR (c <= ind + x.n)
                    OR ~NestFits(x.child, stack, width - c,
                                 width - ind - x.n)) THEN
-          Push(stack, c, mode, x.child, TRUE)
-        ELSE Push(stack, ind + x.n, mode, x.child, TRUE)
+          PushAligned(stack, r, mode, x.child)
+        ELSE PushIn(stack, r, ind + x.n, mode, x.child)
         END
     | group:
         IF (mode = flat)
             OR ~x.hard & Fits(x.child, stack, width - Column(r), FALSE) THEN
-          Push(stack, ind, flat, x.child, TRUE)
+          PushIn(stack, r, ind, flat, x.child)
         ELSE
-          Push(stack, ind, broken, x.child, TRUE)
+          PushIn(stack, r, ind, broken, x.child)
         END
-    | concat: Push(stack, ind, mode, x.child, TRUE)
+    | concat: PushIn(stack, r, ind, mode, x.child)
     | mark: x.n := NextLine(r)
-    | choice:
+    | choice, run:
     END
   END;
-  IF r.out.len > 0 THEN OppText.AppendChar(r.out, 0AX) END;
+  IF r.out.len > 0 THEN OppText.AppendChar(r.out, 0AX); EndLine(r) END
+END Pass;
+
+(* Whether x's extra spaces may be what made line l too long: they are on
+   l, or on a line whose extra spaces shift l's start. *)
+PROCEDURE Shifts(VAR r: Renderer; x: Doc; l: LONGINT): BOOLEAN;
+  VAR n: LONGINT;
+BEGIN
+  n := 0;
+  WHILE (l >= 0) & (n <= r.lineNo) DO
+    IF x.line = l THEN RETURN TRUE END;
+    l := r.lineOrigin[l]; INC(n)
+  END;
+  RETURN FALSE
+END Shifts;
+
+(* Turns off, for each line too long because of extra spaces, the last
+   of them that shifts it: the author's while lining up is off, then a run
+   opp lines up. A line too long without them, for a comment or a string
+   that cannot break, may keep them, as a trailing comment may overflow.
+   Whether it turned off any. *)
+PROCEDURE Blame(VAR r: Renderer): BOOLEAN;
+  VAR l: LONGINT; x, last: Doc; any: BOOLEAN;
+BEGIN
+  any := FALSE;
+  FOR l := 0 TO r.lineNo - 1 DO
+    IF (r.lineCol[l] > r.width) & (r.lineExtra[l] > 0)
+        & (r.lineCol[l] - r.lineExtra[l] <= r.width) THEN
+      x := r.met; last := NIL;
+      WHILE x # NIL DO
+        IF (x.extra > 0) & Shifts(r, x, l) THEN
+          IF ~r.lineUp & ((x.kind = widen) OR x.excluded)
+              OR r.lineUp & (x.kind = pad) & ~x.excluded & x.sub.on THEN
+            last := x
+          END
+        END;
+        x := x.link
+      END;
+      IF last = NIL THEN
+      ELSIF r.lineUp THEN last.sub.on := FALSE; any := TRUE
+      ELSE last.on := FALSE; any := TRUE
+      END
+    END
+  END;
+  RETURN any
+END Blame;
+
+(* Leaves out of their runs the pads that share a line with another of
+   their run: declarations packed onto a line. *)
+PROCEDURE Exclude(VAR r: Renderer);
+  VAR x, prev: Doc;
+BEGIN
+  x := r.met;
+  WHILE x # NIL DO IF x.kind = pad THEN x.ref.last := NIL END; x := x.link END;
+  x := r.met;
+  WHILE x # NIL DO
+    IF x.kind = pad THEN
+      prev := x.ref.last;
+      IF (prev # NIL) & (prev.line = x.line) & ~x.ref.adjacent THEN
+        prev.excluded := TRUE; x.excluded := TRUE
+      END;
+      IF x.midLine & x.ref.adjacent THEN x.excluded := TRUE END;
+      x.on := TRUE; x.ref.last := x
+    END;
+    x := x.link
+  END
+END Exclude;
+
+(* Gives each pad in a run its run, and each run the column its pads line
+   up at: the furthest any of them starts at. With start, every run is on.
+   Whether any run's column changed. *)
+PROCEDURE Columns(VAR r: Renderer; start: BOOLEAN): BOOLEAN;
+  VAR x, prev: Doc; changed: BOOLEAN;
+BEGIN
+  x := r.met;
+  WHILE x # NIL DO
+    IF x.kind = pad THEN x.ref.last := NIL; x.ref.limit := 0; x.limit := 0 END;
+    x := x.link
+  END;
+  x := r.met;
+  WHILE x # NIL DO
+    IF (x.kind = pad) & ~x.excluded THEN
+      IF ~x.ref.adjacent THEN
+        x.sub := x.ref
+      ELSE
+        prev := x.ref.last;
+        IF (prev # NIL) & (prev.line + 1 = x.line) THEN x.sub := prev.sub
+        ELSE x.sub := x
+        END;
+        x.ref.last := x
+      END;
+      IF start THEN x.sub.on := TRUE END;
+      IF x.col > x.sub.limit THEN x.sub.limit := x.col END
+    END;
+    x := x.link
+  END;
+  changed := FALSE; x := r.met;
+  WHILE x # NIL DO
+    IF (x.kind = pad) & ~x.excluded & (x.sub.n # x.sub.limit) THEN
+      x.sub.n := x.sub.limit; changed := TRUE
+    END;
+    x := x.link
+  END;
+  RETURN changed
+END Columns;
+
+(* d laid out within width columns, ending with one line break.
+
+   Every layout decision ignores the extra spaces of alignment, so the
+   lines are the same with or without them, and the extra spaces only move
+   text right. The renderer renders d again until no line is too long
+   because of them: first with the author's spaces (Widen), turning off
+   those of a line that is too long; then with the runs opp lines up
+   (Pad), turning off a run with a line too long, until their columns
+   settle. The author's spaces come first so that formatting the output
+   again gives the same output. *)
+PROCEDURE Render*(d: Doc; width: LONGINT): OppText.Buffer;
+  VAR
+    r: Renderer; strict, end, any: BOOLEAN; x: Doc; n: INTEGER;
+BEGIN
+  Propagate(d, strict, end);
+  r.lineCol := NIL; r.first := TRUE; r.lineUp := FALSE;
+  Pass(d, width, r);
+  IF r.met = NIL THEN RETURN r.out END;
+  r.first := FALSE;
+  Exclude(r);
+  REPEAT Pass(d, width, r) UNTIL ~Blame(r);
+  any := FALSE; x := r.met;
+  WHILE x # NIL DO
+    IF (x.kind = pad) & ~x.excluded THEN any := TRUE END;
+    x := x.link
+  END;
+  IF any THEN
+    r.lineUp := TRUE; any := Columns(r, TRUE); n := 0;
+    REPEAT
+      Pass(d, width, r); INC(n);
+      any := Blame(r);
+      IF Columns(r, FALSE) THEN any := TRUE END
+    UNTIL ~any OR (n = 20);
+    IF any THEN (* they did not settle: none lined up *)
+      x := r.met;
+      WHILE x # NIL DO
+        IF (x.kind = pad) & ~x.excluded THEN x.sub.on := FALSE END;
+        x := x.link
+      END;
+      Pass(d, width, r)
+    END
+  END;
   RETURN r.out
 END Render;
 
