@@ -4,4 +4,4 @@ Search for the config file in the current directory and in ~/.config/opp.
 * TODO There should be an option that tries to line things up.
 Constants lined up in columns, types have their equal signs lined up,
 field and variable declaration have their types lined up, initializers
-have their := lined up, and so forth.
+have their := lined up, trailing comments, and so forth.
