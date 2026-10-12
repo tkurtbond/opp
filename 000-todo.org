@@ -1,6 +1,6 @@
-* TODO Opp should be able to read its configuration options from a config file.
+* DONE Opp should be able to read its configuration options from a config file.
 Search for the config file in the current directory and in ~/.config/opp/.
-* TODO There should be an option to write new versions of all the files specified in an output directory.
+* DONE There should be an option to write new versions of all the files specified in an output directory.
 * DONE There should be an option that tries to line things up.
 Constants lined up in columns, types have their equal signs lined up,
 field and variable declaration have their types lined up, initializers
