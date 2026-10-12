@@ -1,0 +1,27 @@
+# A width below 20 is a usage error (exit 2), with the usage on standard error.
+program Opp
+arg -w
+arg 5
+status 2
+output
+Error: Value out of range for option -w, --width.
+opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, or -, standard input
+
+  -w <arg>, --width <arg>
+      The maximum line length (20 to 1000; default 80).
+  -i <arg>, --indent <arg>
+      Columns per indentation level (1 to 16; default 2).
+  -1, --one-per-line
+      Put every statement on its own line (the default).
+  -p, --pack
+      Pack short statements and declarations onto shared lines.
+  -k, --keep-lines
+      Keep statements and declarations on shared lines where the source has them, while they fit.
+  --no-module-indent
+      Start a module's declarations and statements at column 1.
+  --in-place
+      Replace each file with its formatted text.
+  -c, --check
+      Write nothing; exit 1 and name each file that would change.
+  -h, --help
+      Show this help and exit.

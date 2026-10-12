@@ -1,0 +1,466 @@
+# PLAN.md: opp, the Oberon pretty printer
+
+opp reads Oberon-2 modules written for poc or voc and writes them back
+laid out consistently, within a maximum line length, with every comment
+kept. `AGENTS.md` has the standing rules; this file has the design, the
+decisions behind it, and the phases of work.
+
+## Goals
+
+1. Parse everything poc (both branches) and voc parse, as source text, and
+   reproduce it token for token.
+2. Lay it out within `--width` columns wherever a line can be broken.
+3. Three statement modes: **one statement per line**; **packed**, where
+   runs of short simple statements and declarations share a line and short
+   structured statements fit on one line; and **kept**, which keeps
+   together on a line what the author put on one line, as long as it fits.
+4. Keep every comment, and keep the author's blank lines (collapsed to one).
+5. Never change a program's meaning; prove it on every run.
+6. Build and run with both voc and poc, on every host poc supports.
+
+Not goals: semantic checks, renaming, reordering declarations, changing
+the case of identifiers, rewriting numbers or strings, and formatting
+`.sym` files or voc's `DEFINITION` listings.
+
+## Command line
+
+```
+opp [options] [file ...]
+```
+
+With no files, opp formats standard input to standard output. With files,
+it writes each formatted file to standard output in turn, unless
+`--in-place` or `--check` is given.
+
+| Option | Meaning |
+| --- | --- |
+| `-w N`, `--width N` | maximum line length (default 80; 20..1000) |
+| `-i N`, `--indent N` | columns per indentation level (default 2; 1..16) |
+| `-1`, `--one-per-line` | every statement on its own line (the default) |
+| `-p`, `--pack` | pack short statements and declarations onto shared lines |
+| `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
+| `--no-module-indent` | start a module's declarations and statements at column 1 |
+| `--in-place` | replace each file with its formatted text |
+| `-c`, `--check` | write nothing; exit 1 and name each file that would change |
+| `-h`, `--help` | show the usage and exit 0 |
+
+`--one-per-line`, `--pack` and `--keep-lines` choose the statement mode;
+when more than one is given, the last one wins.
+
+## The syntax opp accepts
+
+The grammar of `Oberon2.pdf` Appendix B, plus the following.
+
+**poc extensions** (from poc's `src/front/Lexer.Mod`, `Parser.Mod` and
+`doc/developer/language-extensions.md`):
+
+- `_` and `$` anywhere a letter may be in an identifier.
+- `CONST`, `TYPE` and `VAR` sections after procedures.
+- Variable initializers: `VAR a, b: T := e;`.
+- Record field initializers: `RECORD x, y: INTEGER := e END`.
+- Read-only parameters: `PROCEDURE P(x-: T)`.
+- External procedures: `PROCEDURE ["C"] Name*(...): T;` and
+  `PROCEDURE ["C", "linkname"] Name(...);`, with no body.
+- Record and array literals: `Point{x := 1, y := 2}`, `Vector{1, 2, 3}`,
+  `T{[48..57]: 1}`, and nested literals without a type name `{...}`.
+- `ASSERT`, `HUGEINT`, `SYSTEM.*` and 64-bit hexadecimal constants need
+  nothing from a pretty printer: they are ordinary identifiers, calls and
+  numbers.
+- Text after the module's closing period is not read.
+
+**voc extensions** (from voc's `OPS.Mod` and `OPP.Mod`):
+
+- System flags: `RECORD [n]`, `ARRAY [n] OF`, `ARRAY [n] len OF`,
+  `POINTER [n] TO`, `PROCEDURE [n] (...)` (a procedure type).
+- Code procedures: `PROCEDURE -Name(...): T "C text";` and the older form
+  with a list of byte values, `PROCEDURE -Name 0E8H, 12H;`.
+- Interrupt procedures `PROCEDURE +Name` and the `PROCEDURE *Name` mark.
+- Read-only parameters `x-` (also poc's) and read-only export marks `x-`.
+- `(** ... *)` exported comments, which are ordinary comments to opp.
+
+Both: `IMPORT A := B`, forward declarations `PROCEDURE ^ P`, type-bound
+procedures and super calls `r.P^`, type guards anywhere in a designator.
+
+## Architecture
+
+### OppText
+
+`Text` (`POINTER TO ARRAY OF CHAR`, 0X-terminated, allocated to fit) and
+`Buffer`, a Text that doubles as it grows. `Width` counts the columns UTF-8
+text takes. Written.
+
+### OppScanner: a lossless lexer
+
+The scanner is pulled one token at a time by the parser, so it never reads
+past the module's closing period. Each token has its kind, its exact text
+(a string keeps its quotes, a number its suffix), its line and column, and:
+
+- `blankBefore`: a blank line separates it from what came before it;
+- `lead`: the comments on lines of their own before it;
+- `trail`: the comments after it on the same line, each noting whether a
+  line break follows it.
+
+A comment that begins on the same line as the token before it is a
+trailing comment of that token; any other comment leads the next token.
+Each comment keeps its text, its visual starting column (tabs expanded to
+multiples of 8) and whether a blank line precedes it. Nested comments are
+kept whole. Carriage returns are dropped.
+
+Errors: an unterminated comment or string, an invalid character, an
+invalid number.
+
+### OppDoc: the layout engine
+
+A document is a tree of nodes, rendered within a width by the algorithm of
+Wadler's "A prettier printer" [1], with Leijen's `align` and `fill` [2]
+and Prettier's way of running it with an explicit stack and of checking
+what follows a group [3]; "References" below has the sources:
+
+| Node | Flat | Broken |
+| --- | --- | --- |
+| `Text s` | `s` | `s` |
+| `Line` | a space | a line break and the indentation |
+| `SoftLine` | nothing | a line break and the indentation |
+| `HardLine` | (forces its groups broken) | a line break |
+| `BlankLine` | (forces its groups broken) | a line break and one empty line |
+| `FillLine` | a space | a space if the next item fits, else a line break |
+| `Nest n d` | `d` indented `n` more after its line breaks | |
+| `Align d` | `d` indented to the current column | |
+| `AlignOrNest n d` | `Align d`, or `Nest n d` when the column is past a limit | |
+| `Group d` | `d` flat if it fits, else broken | |
+| `Concat` | its children in order | |
+| `Comment` | a comment, its later lines re-indented | |
+
+- A group is laid out flat when it, and what follows it up to the next
+  possible line break, fits in the rest of the line. A group holding a
+  `HardLine`, a `BlankLine` or a multi-line comment is always broken; this
+  is worked out once, before rendering.
+- `FillLine` gives Prettier's `fill`: each separator breaks only when the
+  item after it does not fit on the current line. It packs argument lists,
+  identifier lists, operand chains and, in `--pack` mode, statements.
+- Line breaks are lazy: a break is recorded and written only when text
+  follows, so breaks requested twice in a row make one, a `BlankLine`
+  never makes two empty lines, no line ends in spaces, and blank lines
+  have no indentation.
+- A multi-line comment's later lines move by as many columns as its first
+  line moved, never left of column 1.
+- The renderer writes into an `OppText.Buffer`.
+- The stack is a linked list of frames, each holding an indentation, a
+  mode and a chain of sibling nodes, so no array limits the depth of
+  nesting.
+
+### OppFormat: the parser that builds the document
+
+Recursive descent, one procedure per production, following poc's
+`Parser.Mod`, extended with voc's productions. It needs one token of
+lookahead past the current one, to tell `field := value` in a literal from
+an expression. `(...)` after a designator is always parsed as a selector, a
+call or a guard alike, so `p(T).f` and `F(x)` need no symbol table.
+
+Comments are turned into document nodes by one procedure, `Tok`, which
+emits a token with its leading comments (each on its own line, after a
+blank line if it had one) and its trailing comments (after a space, then a
+forced line break if one followed in the source). At the end of a
+statement sequence, field list or declaration section, the comments
+leading the closing keyword (`END`, `ELSE`, `ELSIF`, `UNTIL`, `|`) are
+emitted inside the body, at the body's indentation.
+
+A token's `blankBefore` is honored where an item starts: a statement, a
+declaration, a field list, a `CASE` arm, a procedure, an import list. Blank
+lines inside an expression are dropped.
+
+### Opp: the program
+
+Parses the command line with `ArgParser`, reads each file (or standard
+input) into memory, formats it, runs the **safety check**, and writes the
+result. The safety check rescans the output and the input and compares
+them token by token: kinds and texts, the comments' texts with each line's
+leading white space removed, and the text after the closing period. A
+mismatch is reported as an internal error, with the first differing
+position, and nothing is written.
+
+## Layout rules
+
+These describe the default style, close to poc's and Wirth's own. `s` is
+the `--indent` step.
+
+**Module**
+
+```
+MODULE M;  (* trailing comment kept *)
+
+  IMPORT Lexer, D := Diagnostics;
+
+  CONST
+    max = 10;
+  ...
+BEGIN
+  ...
+END M.
+```
+
+The module's contents are nested `s`, except with `--no-module-indent`.
+`BEGIN` and `END M.` are at the module's column. The import list fills
+its lines, continued at `2s`.
+
+**Declaration sections.** A section holding one declaration that fits
+goes on the keyword's line (`VAR c: CHAR;`). Otherwise the keyword stands
+alone and its declarations follow, nested `s`, one per line. With
+`--pack` they fill lines instead, as in `VAR i, j: INTEGER; c: CHAR;`, and
+stay on the keyword's line if they all fit. With `--keep-lines` they share
+a line, the keyword's included, where the source has them on one line and
+they still fit; see "Kept" below.
+
+**Types.** A record's field lists go one per line, nested `s` from the
+line the record starts on, and its `END` aligns with that line; an empty
+record is `RECORD END`. `ARRAY a, b OF T`, `POINTER TO T`, and procedure
+types as in a procedure heading. System flags follow their keyword:
+`RECORD [1]`, `POINTER [1] TO`.
+
+**Procedures.**
+
+```
+  PROCEDURE (VAR p: Parser) Name*(a, b: INTEGER; VAR c: ARRAY OF CHAR;
+                                  d-: T): BOOLEAN;
+    VAR i: LONGINT;
+  BEGIN
+    ...
+  END Name;
+```
+
+Formal parameter sections fill their lines aligned after `(`. The
+procedure's declarations are nested `s`; `BEGIN` and `END Name;` are at the
+procedure's column; its statements are nested `s`. Forward declarations
+print as `PROCEDURE ^ Name(...);`, with a space after the `^` as poc
+writes it, so the mark that makes it a forward declaration stands out;
+external ones as
+`PROCEDURE ["C", "name"] Name(...);`, code procedures as
+`PROCEDURE -Name(...) "text";`, and `+`/`*` marks as `PROCEDURE +Name`.
+
+**Blank lines between procedures.** opp keeps the author's blank lines,
+and adds one between two consecutive procedure declarations at the same
+level when the source has none, if either of them has a body. A run of
+forward or external declarations is left as written. When a procedure has
+comments on lines of their own before it, the blank line goes before the
+comments, which belong to the procedure.
+
+**Statements.** Statement sequences are nested `s`. Structured statements:
+
+```
+IF a THEN            WHILE c DO          REPEAT
+  ...                  ...                 ...
+ELSIF b THEN         END                 UNTIL c
+  ...
+ELSE                 FOR i := 0 TO n - 1 BY 2 DO      LOOP
+  ...                  ...                              ...
+END                  END                              END
+
+CASE ch OF                       WITH v: T DO
+  "a": x := 1                      ...
+| "b", "c" .. "e":               | v: U DO
+    IF ... END;                    ...
+    y := 2                       ELSE
+ELSE                               ...
+  z := 3                         END
+END
+```
+
+A `CASE` arm's labels are at the column after `|` and its padding; a body
+that is one statement and fits goes on the labels' line, any other body is
+nested `s` below them. The `ELSE` of a `CASE` takes its body on its own line
+by the same rule. `CASE` and a `WITH` with more than one guard are always
+broken.
+
+**One per line** (`-1`, the default): every statement starts its own line,
+and every structured statement is broken as shown.
+
+**Packed** (`-p`): consecutive simple statements (assignments, calls,
+`RETURN`, `EXIT`) share a line while they fit, as in
+`Advance(s); Advance(s); INC(depth)`. A structured statement always starts
+its own line and the statement after it starts a new line, but the
+structured statement itself goes on one line when it all fits:
+`IF ch = 0X THEN RETURN 0X ELSE RETURN s.text[s.pos] END`. A statement
+with a comment on a line of its own before it, or a blank line before it,
+starts a new line; so does the statement after a trailing comment that
+ended its line in the source.
+
+**Kept** (`-k`): a statement starts a new line where it started one in the
+source, and shares the line of the statement before it where the author
+wrote them on one line; a run that no longer fits is filled onto as many
+lines as it needs. A structured statement the author wrote on one line
+stays on one line if it fits, and is broken as shown above if it does not;
+one the author broke stays broken. Declarations follow the same rule. This
+is idempotent: what opp splits, it never joins again. Whether two
+statements were on one line is decided from their tokens' line numbers in
+the source.
+
+**Expressions.** Spaces around `:=`, relations and binary operators, none
+inside parentheses or brackets, one after each comma. A chain of operands
+at one precedence level fills its lines, breaking *before* an operator and
+continuing at `2s` from the statement's indentation. A parenthesized
+expression breaks aligned after its `(`. Argument lists, index lists, sets
+and literals fill their lines aligned after the opening bracket, or nested
+`2s` when that column is too far right (past two thirds of the width).
+
+**Kept as written:** identifiers, numbers, strings and their quote
+characters, comments' text, the export marks, a trailing `;` before `END`
+(an empty last statement or field list). Empty statements elsewhere and
+empty `CASE` arms are dropped (their comments are kept).
+
+## Decisions
+
+- **Written in Oberon-2, built with both voc and poc**, like `Ropes` and
+  `oberon-tools`, so opp is itself a test of both compilers and can follow
+  poc to VAX/VMS. Its own source must format cleanly with opp.
+- **No `Ropes.Mod`** (2026-10-12, with the user): opp reads a file once and
+  scans it sequentially, and its output only grows at the end, so a flat
+  `OppText.Buffer` is simpler and faster than a rope, and avoids a third
+  shared library to install and keep in step with poc.
+- **A layout engine, not ad hoc line breaking**: Wadler/Prettier documents
+  ([1], [3]; [4] argues the case for a code formatter)
+  make the width rule and the statement modes properties of a few
+  node kinds instead of special cases scattered through the parser.
+- **The parser builds the document directly**, without an intermediate
+  syntax tree: opp needs no analysis that a tree would make easier, and the
+  comments ride on the tokens.
+- **One per line is the default**: it is the predictable choice, and
+  `--pack` and `--keep-lines` are one option away.
+- **`--pack` packs declarations too** (2026-10-12, with the user).
+- **A third mode, `--keep-lines`** (2026-10-12, with the user), that keeps
+  the author's grouping of statements and declarations.
+- **A blank line between procedures** (2026-10-12, with the user): opp
+  adds one where the source has none.
+- **`PROCEDURE ^ Name`, poc's spelling** (2026-10-12, with the user): the
+  space makes the `^`, and so the forward declaration, more obvious.
+- **The safety check always runs**: it is cheap next to parsing, and
+  `--in-place` must never damage a file.
+
+## Open questions
+
+None at present. Phase 5 may raise some from real code.
+
+## Phases
+
+Each phase ends with `make test`, `make -f pocGNUmakefile test-poc` and
+(from Phase 4) `make corpus` passing, and a commit.
+
+### Phase 0: repository (done 2026-10-12)
+
+- `AGENTS.md`, `PLAN.md`, `README.md`, `GNUmakefile`, `pocGNUmakefile`,
+  `.gitignore` (`/Opp`, `*.c`, `*.h`, `*.o`, `*.sym`, `/poc-build/`).
+- `tests/run-tests.sh` from Ropes; `tests/data/`.
+- `OppText.Mod`.
+- A skeleton `Opp.Mod` that takes every option of "Command line" through
+  ArgParser (the range checks on `--width` and `--indent` are ArgParser's)
+  and its file names, then says formatting is not implemented and exits 1.
+- Fixtures `opp-help`, `opp-width-range`, `opp-indent-range`,
+  `opp-unknown-option` and `opp-not-implemented`; the last goes when
+  Phase 3 makes opp format. Both builds pass them.
+
+### Phase 1: scanner
+
+- `OppScanner.Mod` as described, with poc's identifier characters and all
+  of voc's and poc's number forms.
+- A test driver mode (`opp --tokens`, kept as an undocumented debugging
+  aid) that lists tokens with their comments and flags, so the scanner has
+  fixtures of its own: comments leading, trailing and between tokens,
+  nested comments, blank lines, tabs, CRLF, both quote characters,
+  `1..5`, `0FFH`, `41X`, `1.5D10`, unterminated comments and strings.
+
+### Phase 2: layout engine
+
+- `OppDoc.Mod` with every node kind above.
+- A small in-process check program, `OppDocTest.Mod`, in the style of
+  `RopeTest` (`ok -`/`not ok -` lines, `N/M tests passed.`), checking
+  groups, nesting, alignment, fill, lazy and blank lines, trailing white
+  space, and comment re-indentation at several widths.
+
+### Phase 3: parser and printer
+
+In this order, each with fixtures in `tests/data/` formatted at a narrow
+and a wide width, in all three statement modes:
+
+1. Modules, imports, declaration sections, types.
+2. Procedures: headings, receivers, forward, external and code
+   procedures, nested procedures.
+3. Statements, in all three modes, and the blank lines opp adds between
+   procedures.
+4. Expressions, designators, sets and literals.
+5. Comments and blank lines everywhere; trailing semicolons; empty
+   statements and arms.
+6. Syntax errors: position and message, nothing written, exit 1.
+
+### Phase 4: the program and the safety check
+
+- `Opp.Mod`: options, standard input, several files, `--in-place`,
+  `--check`, the exit statuses.
+- The safety check, with a fixture that proves it can fail (a debugging
+  option that deliberately damages the output, used only by that fixture).
+- `make corpus`: format every `.Mod` in poc's `src/` and `rtl/` (both
+  branches), voc's `src/compiler/` and `src/library/`, and the user's other
+  Oberon repos, at widths 60, 80 and 120, in all three modes, checking for
+  each: no syntax error, the safety check passes, the output is idempotent,
+  and no line is longer than the width except where it cannot be broken
+  (one token, a string or a comment that is too long); report those lines.
+- Format opp's own source with opp and commit the result.
+
+### Phase 5: real-code polish
+
+- Review the corpus output for poc's sources against their hand
+  formatting, and adjust the rules where opp's layout reads worse.
+- Settle any questions real code raises with the user.
+- `README.md` and a man page `opp.1`; `make install`/`uninstall` for both
+  builds.
+
+### Later
+
+- Formatting a range of lines, for editor integration.
+- Building and running opp on VAX/VMS once poc's VMS backend can.
+
+## References
+
+The layout engine (`OppDoc`):
+
+1. Philip Wadler, "A prettier printer", in Jeremy Gibbons and Oege de Moor
+   (eds.), *The Fun of Programming*, Palgrave Macmillan, 2003, pp. 223-243.
+   <https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf>.
+   The document algebra (`text`, `line`, `nest`, `group`) and the
+   rule that a group is flat when it fits, judged up to the next line break.
+2. Daan Leijen, `wl-pprint`, the Haskell library that implements [1] and
+   adds `align`, `hang`, `fill` and `softline`.
+   <https://hackage.haskell.org/package/wl-pprint>. Where opp's `Align`
+   and `FillLine` come from.
+3. Prettier's documents and printer: "Prettier's intermediate
+   representation: Doc",
+   <https://github.com/prettier/prettier/blob/main/commands.md>, and the
+   printer itself, <https://github.com/prettier/prettier/tree/main/src/document/printer>.
+   An imperative version of [1] driven by a stack of (indentation, mode,
+   document) commands; groups that a hard line forces broken
+   (`propagateBreaks`); `fill`'s rule of checking each separator against
+   the item after it; and `fits`, which measures past the end of a group
+   into what follows it. opp's renderer follows this, in Oberon.
+4. James Long, "A Prettier JavaScript Formatter", 2017.
+   <https://archive.jlongster.com/A-Prettier-Formatter>. Why Prettier
+   chose [1] over ad hoc line breaking: background for this plan's
+   "A layout engine" decision.
+
+Background only:
+
+5. Derek C. Oppen, "Prettyprinting", *ACM Transactions on Programming
+   Languages and Systems* 2(4), October 1980, pp. 465-483.
+   <https://doi.org/10.1145/357114.357115>. The original linear-time
+   algorithm with blocks and breaks, which [1] reformulates.
+6. John Hughes, "The Design of a Pretty-printing Library", in *Advanced
+   Functional Programming*, LNCS 925, Springer, 1995. The combinator
+   library that [1] improves on.
+
+The languages opp formats:
+
+7. H. Mössenböck and N. Wirth, *The Programming Language Oberon-2*
+   (`Oberon2.pdf`, `~/Reference/Computer/Languages/Oberon/`), Appendix B,
+   the grammar, as poc reads it.
+8. poc: `src/front/Lexer.Mod`, `src/front/Parser.Mod` and
+   `doc/developer/language-extensions.md` in `~/Repos/Oberon/Peaseblossom-main`
+   and `~/Repos/Oberon/Peaseblossom`.
+9. voc: `src/compiler/OPS.Mod`, `src/compiler/OPP.Mod` and `doc/Features.md`
+   in `/usr/local/sw/src/lang/Oberon/vishap/compiler`.

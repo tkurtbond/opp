@@ -1,0 +1,82 @@
+# Build opp with poc, the Peaseblossom Oberon Compiler, as installed (poc
+# on PATH, with its runtime library poc-rtl):
+#
+#   make -f pocGNUmakefile
+#
+# poc builds in poc-build/, where the sources it needs are symlinked, for
+# two reasons. What it writes - each module's .sym (in text), .ll and .o,
+# and the programs - lands there and not next to the sources, where it
+# would overwrite voc's symbol files (voc then ignores them, "warning 306
+# inappropriate symbol file ignored", until they are rebuilt). And poc does
+# not see what voc leaves here: it compiles a Module.c beside Module.Mod as
+# the module's part in C, which voc's generated Opp.c is not.
+#
+# ArgParser is shared with other repos: it comes from the poc library
+# argparser, in $(POC_OBERON_LIBRARIES)/argparser, where make -f
+# pocGNUmakefile install in ~/Repos/Oberon/ArgParser puts it, so it isn't
+# compiled here. Args, Err, Files, In, Out and Platform come from poc's
+# runtime library, poc-rtl, so no Err.Mod is linked into poc-build/.
+#
+# POC selects another poc, by an absolute path, since it runs in poc-build:
+#
+#   make -f pocGNUmakefile POC=$HOME/Repos/Oberon/Peaseblossom/build/bin/poc
+#
+# install copies Opp to BINDIR (default ~/local/bin) as opp, the same place
+# and name as the GNUmakefile's install, so it replaces the voc build
+# there; uninstall removes it, whichever compiler built it:
+#
+#   make -f pocGNUmakefile install BINDIR=/usr/local/bin
+
+POC ?= poc
+
+# Each library in its own directory under POC_OBERON_LIBRARIES, so a
+# program names only the libraries it uses. Opp is built under the default
+# size model, -O2.
+POC_OBERON_LIBRARIES ?= /usr/local/sw/versions/oberon/poc/lib
+ARGPARSER_LIB = $(POC_OBERON_LIBRARIES)/argparser
+
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean uninstall,$(MAKECMDGOALS)),all),)
+$(if $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library),,$(error the argparser library is not in $(ARGPARSER_LIB); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
+endif
+
+BUILDDIR = poc-build
+PROGRAMS = Opp
+# opp's own modules, which poc compiles from source along with Opp.Mod.
+MODULES = OppText
+BINDIR ?= $(HOME)/local/bin
+
+.PHONY: all clean test-poc test-verbose install uninstall
+
+# Keep the symlinks to the sources instead of deleting them as intermediates.
+.SECONDARY:
+
+all: $(addprefix $(BUILDDIR)/,$(PROGRAMS))
+
+$(BUILDDIR):
+	mkdir -p $@
+
+$(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+# poc compiles every module of a program from its source on every build,
+# except those a library on the library path has.
+$(BUILDDIR)/%: $(BUILDDIR)/%.Mod $(MODULES:%=$(BUILDDIR)/%.Mod) $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library)
+	cd $(BUILDDIR) && $(POC) -library-path $(ARGPARSER_LIB) -o $* $*.Mod
+
+# Run the fixtures in tests/ against the poc-built programs and report how
+# many passed and failed; test-verbose announces each test as it goes.
+test-poc: all
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh
+
+test-verbose: all
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
+
+install: $(BUILDDIR)/Opp
+	install -d $(BINDIR)
+	install -m 755 $(BUILDDIR)/Opp $(BINDIR)/opp
+
+uninstall:
+	rm -f $(BINDIR)/opp
+
+clean:
+	-rm -rfv $(BUILDDIR)
