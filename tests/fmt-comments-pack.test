@@ -28,7 +28,7 @@ MODULE Comments; (* trailing the module heading *)
       (* at the end of a body *)
     END;
     CASE x OF
-      1: x := 6
+    | 1: x := 6
     (* an empty arm, with a comment *)
     | 2: x := 7;
     END;

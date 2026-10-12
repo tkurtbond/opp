@@ -22,6 +22,8 @@ PROGRAMS=Opp OppDocTest
 
 # make install copies Opp to BINDIR, under the name opp.
 BINDIR ?= $(HOME)/local/bin
+# and its man page, opp.1, to MANDIR.
+MANDIR ?= $(HOME)/local/share/man/man1
 
 # voc's collector misses a pointer held only in a callee-saved register
 # (vishap-bugs 14), which garbled or crashed opp on large files. As
@@ -83,14 +85,15 @@ test-verbose: all
 	./tests/run-tests.sh -v
 
 # The bodies of real Oberon that make corpus formats: poc (both
-# branches), voc, and the other Oberon repos.  A directory that does not
+# branches), voc, the other Oberon repos, and opp itself (its source and
+# its tests' inputs).  A directory that does not
 # exist is skipped.
 OBERON_REPOS ?= $(HOME)/Repos/Oberon
 VOC_SOURCE ?= /usr/local/sw/src/lang/Oberon/vishap/compiler
 CORPUS_DIRS ?= $(OBERON_REPOS)/Peaseblossom-main $(OBERON_REPOS)/Peaseblossom \
   $(VOC_SOURCE) $(OBERON_REPOS)/ArgParser $(OBERON_REPOS)/Ropes \
   $(OBERON_REPOS)/oberon-tools $(OBERON_REPOS)/polibfyaml \
-  $(OBERON_REPOS)/pofltk $(OBERON_REPOS)/oberon-experiments
+  $(OBERON_REPOS)/pofltk $(OBERON_REPOS)/oberon-experiments $(CURDIR)
 
 # Format every module in CORPUS_DIRS in all three modes at widths 60, 80
 # and 120, checking that opp succeeds and is idempotent, and reporting the
@@ -108,9 +111,11 @@ format: Opp
 install: Opp
 	install -d $(BINDIR)
 	install -m 755 Opp $(BINDIR)/opp
+	install -d $(MANDIR)
+	install -m 644 opp.1 $(MANDIR)/opp.1
 
 uninstall:
-	rm -f $(BINDIR)/opp
+	rm -f $(BINDIR)/opp $(MANDIR)/opp.1
 
 clean:
 	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym $(SPILL)

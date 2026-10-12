@@ -1,0 +1,158 @@
+.TH OPP 1 2026-10-12 "opp" "User Commands"
+.SH NAME
+opp \- the Oberon pretty printer
+.SH SYNOPSIS
+.B opp
+.RI [ options ]
+.RI [ file " ...]"
+.SH DESCRIPTION
+.B opp
+reformats Oberon-2 modules written for
+.B poc
+(the Peaseblossom Oberon Compiler) or
+.B voc
+(Vishap Oberon), including both compilers' extensions to the language.
+It keeps every comment and the author's blank lines, lays the code out
+within a maximum line length, and puts statements one per line, packs
+short ones onto shared lines, or keeps the author's own grouping.
+.PP
+With no
+.IR file ,
+or with
+.BR \- ,
+opp reads standard input.
+It writes each formatted file to standard output in turn, unless
+.B \-\-in\-place
+or
+.B \-\-check
+is given.
+The text after the period that ends a module is copied as it is.
+.PP
+Before it writes anything for a file, opp checks its formatted text: the
+text must have the input's tokens and comments in the same order, and
+must parse.
+The only differences allowed are the semicolons of empty statements and
+the bars of empty
+.B CASE
+arms, which opp leaves out, and the bar
+.B \-\-case\-bar add
+puts before a first arm.
+If the check fails, opp reports an internal error and writes nothing for
+that file.
+.SH OPTIONS
+.TP
+.BR \-w " \fIn\fR, " \-\-width " \fIn"
+The maximum line length, 20 to 1000; the default is 80.
+A line can still be longer when it holds a string, a comment or a name
+that does not fit.
+.TP
+.BR \-i " \fIn\fR, " \-\-indent " \fIn"
+Columns per indentation level, 1 to 16; the default is 2.
+A continued line is indented two levels.
+.TP
+.BR \-1 ", " \-\-one\-per\-line
+Put every statement and declaration on its own line, and break every
+structured statement over lines.
+This is the default.
+.TP
+.BR \-p ", " \-\-pack
+Pack short simple statements, and declarations, onto shared lines while
+they fit, and put a structured statement on one line when it fits.
+.TP
+.BR \-k ", " \-\-keep\-lines
+Keep the author's grouping: statements and declarations share a line
+where the source has them on one line, and a structured statement stays
+on one line, or broken, as the source has it, while it fits.
+.TP
+.B \-\-no\-module\-indent
+Start a module's declarations at column 1.
+The statements after its
+.B BEGIN
+are still indented.
+.TP
+.BI \-\-case\-bar " what"
+What to do with a bar before the first arm of a
+.BR CASE :
+.B keep
+it where the source has one (the default),
+.B add
+one to every
+.BR CASE ,
+or
+.B drop
+it.
+.TP
+.B \-\-in\-place
+Replace each file with its formatted text.
+A file that is already formatted is not written.
+A file is written over, so it keeps its permissions, owner and links; its
+old text is first copied to
+.IB file .opp\-backup\fR,
+which is removed once the file is written, and left, and named, if
+writing the file fails.
+Standard input cannot be formatted in place.
+.TP
+.BR \-c ", " \-\-check
+Write no formatted text; name each file that is not already formatted,
+on standard output, and exit 1 if there is one.
+.TP
+.B \-\-tokens
+List each file's tokens and comments as opp's scanner sees them, instead
+of formatting it; a debugging aid.
+.TP
+.BI \-\-damage " n"
+For opp's own tests: spoil the formatted text (1 a token, 2 a comment,
+3 the text after the module) to show that the check catches it.
+.TP
+.BR \-h ", " \-\-help
+Show the usage and exit.
+.PP
+When more than one of
+.BR \-1 ,
+.B \-p
+and
+.B \-k
+is given, the last one wins.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A syntax error or a file that cannot be read or written, or with
+.B \-\-check
+a file that is not formatted.
+.TP
+.B 2
+A mistake on the command line.
+.TP
+.B 3
+An internal error: a formatted text failed the check, and was not
+written.
+.PP
+With several files, every file is still tried, and the worst status
+wins.
+A syntax error is reported as
+.IB file : line : column :
+.IR message .
+.SH EXAMPLES
+Format a module to standard output:
+.PP
+.RS
+.B opp Lexer.Mod
+.RE
+.PP
+Format modules in place, packing short statements, at width 100:
+.PP
+.RS
+.B opp \-p \-w 100 \-\-in\-place *.Mod
+.RE
+.PP
+List the modules that are not formatted as the author grouped them:
+.PP
+.RS
+.B opp \-k \-\-check *.Mod
+.RE
+.SH SEE ALSO
+.BR poc (1),
+.BR voc (1)

@@ -11,10 +11,10 @@ statements one per line, packs short ones onto shared lines, or keeps the
 author's own grouping. Before it writes anything it checks that its output
 has exactly the tokens and comments of its input.
 
-**Status: working; being polished.** opp formats files to standard output
-or in place, and checks them with `--check`. What remains is polish from
-reviewing its output on real code, and a man page (Phase 5 of `PLAN.md`,
-which has the design and the phases).
+**Status: working.** opp formats files to standard output or in place,
+and checks them with `--check`; every formatted text is checked against
+its input before it is written. `opp.1` is the manual; `PLAN.md` has the
+design, the decisions, and what may come later.
 
 ## Usage
 
@@ -33,6 +33,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
+| `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
@@ -55,8 +56,8 @@ make                 # build Opp with voc
 make test            # build, then run the fixtures in tests/
 make corpus          # format poc, voc and other Oberon repos, and check it
 make format          # format opp's own source with opp
-make install         # copy Opp to ~/local/bin as opp (BINDIR to change)
-make uninstall       # remove ~/local/bin/opp
+make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
+make uninstall       # remove them (BINDIR and MANDIR to change the places)
 make -f pocGNUmakefile test-poc   # build with poc instead, then run the fixtures
 make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp
 ```

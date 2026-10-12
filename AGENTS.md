@@ -37,7 +37,7 @@ make                 # build Opp with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
 make corpus          # format large bodies of real Oberon and check them (PLAN.md)
 make format          # format opp's own source with opp
-make install         # copy Opp to ~/local/bin as opp (BINDIR to change)
+make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
 tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
@@ -83,6 +83,11 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - **opp's own source is formatted by opp** (`make format`, with
   `-k --no-module-indent`); the fixture `opp-own-source` fails until it
   is. Run `make format` after editing, and read what it changed.
+- **`opp.1` is the manual.** Keep it, `README.md` and the usage in
+  `Opp.Mod` in step when an option changes.
+- Where authors' styles differ, opp keeps what the author wrote by default
+  and offers options to force it either way (as `--case-bar`; PLAN.md,
+  "Decisions").
 - A change is checked with `make test`, `make -f pocGNUmakefile test-poc`
   and `make corpus` before it is committed.
 

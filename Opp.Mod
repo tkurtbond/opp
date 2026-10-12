@@ -35,6 +35,7 @@ VAR
   opts: OppFormat.Options;
   inPlace, check, tokens: BOOLEAN;
   damage: LONGINT;
+  caseBarOK: BOOLEAN; (* --case-bar's value was one it takes *)
   status: INTEGER; (* the exit status so far *)
   files, lastFile: FileName;
   input: OppText.Buffer;
@@ -64,6 +65,16 @@ PROCEDURE SetKeepLines(): BOOLEAN;
 BEGIN
   opts.mode := OppFormat.keepLines; RETURN TRUE
 END SetKeepLines;
+
+PROCEDURE SetCaseBar(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF val = "keep" THEN opts.caseBar := OppFormat.keepBar
+  ELSIF val = "add" THEN opts.caseBar := OppFormat.addBar
+  ELSIF val = "drop" THEN opts.caseBar := OppFormat.dropBar
+  ELSE caseBarOK := FALSE
+  END;
+  RETURN TRUE
+END SetCaseBar;
 
 PROCEDURE SetNoModuleIndent(): BOOLEAN;
 BEGIN
@@ -397,7 +408,8 @@ END FormatFile;
 
 BEGIN
   opts.width := 80; opts.indent := 2; opts.mode := OppFormat.onePerLine;
-  opts.moduleIndent := TRUE; inPlace := FALSE; check := FALSE; tokens := FALSE;
+  opts.moduleIndent := TRUE; opts.caseBar := OppFormat.keepBar;
+  caseBarOK := TRUE; inPlace := FALSE; check := FALSE; tokens := FALSE;
   damage := noDamage;
   status := 0;
   files := NIL; lastFile := NIL;
@@ -407,20 +419,20 @@ BEGIN
       AddFile);
   parser.AddOption(
       ArgParser.MakeIntOption("w", "width",
-              "The maximum line length (20 to 1000; default 80).", SetWidth, 20,
-              1000));
+          "The maximum line length (20 to 1000; default 80).", SetWidth, 20,
+          1000));
   parser.AddOption(
       ArgParser.MakeIntOption("i", "indent",
-              "Columns per indentation level (1 to 16; default 2).", SetIndent,
-              1, 16));
+          "Columns per indentation level (1 to 16; default 2).", SetIndent, 1,
+          16));
   parser.AddOption(
       ArgParser.MakeOption("1", "one-per-line",
                            "Put every statement on its own line (the default).",
                            SetOnePerLine));
   parser.AddOption(
       ArgParser.MakeOption("p", "pack",
-              "Pack short statements and declarations onto shared lines.",
-              SetPack));
+          "Pack short statements and declarations onto shared lines.",
+          SetPack));
   parser.AddOption(
       ArgParser.MakeOption("k", "keep-lines",
                            "Keep statements and declarations on shared lines where the source has them, while they fit.",
@@ -430,13 +442,17 @@ BEGIN
                            "Start a module's declarations at column 1; its statements stay indented.",
                            SetNoModuleIndent));
   parser.AddOption(
+      ArgParser.MakeStringOption(0X, "case-bar",
+                                 "A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).",
+                                 SetCaseBar));
+  parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",
                            "Replace each file with its formatted text.",
                            SetInPlace));
   parser.AddOption(
       ArgParser.MakeOption("c", "check",
-              "Write nothing; exit 1 and name each file that would change.",
-              SetCheck));
+          "Write nothing; exit 1 and name each file that would change.",
+          SetCheck));
   parser.AddOption(
       ArgParser.MakeOption(0X, "tokens",
                            "List each file's tokens and comments instead of formatting it (a debugging aid).",
@@ -453,6 +469,7 @@ BEGIN
     stdin := "-";
     IF AddFile(0, stdin) THEN END
   END;
+  IF ~caseBarOK THEN UsageError("--case-bar takes keep, add or drop") END;
   IF inPlace & check THEN
     UsageError("--in-place and --check cannot be used together")
   END;

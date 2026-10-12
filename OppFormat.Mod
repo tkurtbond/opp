@@ -29,6 +29,8 @@ IMPORT OppText, S := OppScanner, D := OppDoc;
 CONST
   (* statement modes *)
   onePerLine* = 0; pack* = 1; keepLines* = 2;
+  (* what to do with a bar before a CASE's first arm *)
+  keepBar* = 0; addBar* = 1; dropBar* = 2;
 
   (* what a list holds, for Element *)
   exprs = 0; braceElements = 1; caseLabels = 2;
@@ -37,7 +39,8 @@ TYPE
   Options* = RECORD
     width*, indent*: LONGINT;
     mode*: INTEGER;
-    moduleIndent*: BOOLEAN
+    moduleIndent*: BOOLEAN;
+    caseBar*: INTEGER (* keepBar, addBar or dropBar *)
   END;
 
   Parser = POINTER TO ParserDesc;
@@ -47,6 +50,7 @@ TYPE
     last: S.Token; (* the token before it *)
     eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
+    caseBar: INTEGER;
     ind: LONGINT; (* the indentation step *)
     cont: LONGINT; (* the indentation of a continued line *)
     limit: LONGINT; (* the last column to align a list to *)
@@ -315,11 +319,13 @@ PROCEDURE ^ StatementSeq(p: Parser): D.Doc;
 PROCEDURE ^ DeclSeq(p: Parser; VAR procs: BOOLEAN): D.Doc;
 
 (* A statement sequence, then the comments leading the keyword that closes
-   it, at its indentation. *)
+   it, at its indentation; but comments leading a bar stay with the bar,
+   before the CASE arm or WITH guard they describe. *)
 PROCEDURE BodySeq(p: Parser): D.Doc;
   VAR d: D.Doc;
 BEGIN
   d := StatementSeq(p);
+  IF Is(p, S.bar) THEN RETURN d END;
   RETURN D.Cat(d, TakeLead(p))
 END BodySeq;
 
@@ -366,7 +372,7 @@ BEGIN
   IF ~Is(p, close) THEN
     list := ListFill(p, kind);
     d := D.Nest(p.cont,
-            D.Cat3(d, D.SoftBreak(list), D.AlignOrNest(p.cont, p.limit, list)))
+                D.Cat3(d, D.SoftBreak(list), D.AlignOrNest(0, p.limit, list)))
   END;
   RETURN D.Cat(d, Expect(p, close))
 END Bracketed;
@@ -560,8 +566,7 @@ BEGIN
       D.Add(f, Tok(p)); D.Sep(f); D.Add(f, FPSection(p))
     END;
     d := D.Nest(p.cont,
-                D.Cat3(d, D.SoftBreak(D.Fill(f)),
-                       D.AlignOrNest(p.cont, p.limit, D.Fill(f))))
+        D.Cat3(d, D.SoftBreak(D.Fill(f)), D.AlignOrNest(0, p.limit, D.Fill(f))))
   END;
   d := D.Cat(d, Expect(p, S.rparen));
   IF Is(p, S.colon) THEN
@@ -686,14 +691,30 @@ END BarPad;
 
 (* CASE Expr OF arm {"|" arm} [ELSE StatementSeq] END; always broken *)
 PROCEDURE CaseStatement(p: Parser): D.Doc;
-  VAR d, arm, arms, body, br: D.Doc; bar: D.Doc; k: INTEGER;
+  VAR
+    d, arm, arms, body, br, lead: D.Doc; bar: D.Doc; k: INTEGER; added: BOOLEAN;
 BEGIN
   d := Tok(p);
   d := D.Cat3(d, D.Space(), Expr(p));
   d := D.Cat3(d, D.Space(), Expect(p, S.of));
-  arms := NIL;
+  (* the bar before the first arm, as written, added or dropped *)
+  arms := NIL; lead := NIL; added := FALSE;
+  IF Is(p, S.bar) THEN
+    IF p.caseBar = dropBar THEN Drop(p) ELSE lead := TokItem(p, TRUE) END
+  ELSIF p.caseBar = addBar THEN
+    lead := D.TextOf(OppText.New("|")); added := TRUE
+  END;
   arm := CaseArm(p);
-  IF arm # NIL THEN arms := D.Nest(p.ind, D.Cat(D.HardLine(), arm)) END;
+  WHILE (arm = NIL) & Is(p, S.bar) DO (* empty arms *)
+    Drop(p); arm := CaseArm(p)
+  END;
+  IF arm = NIL THEN
+    IF (lead # NIL) & ~added THEN arms := D.Cat(D.HardLine(), lead) END
+  ELSIF lead = NIL THEN
+    arms := D.Nest(p.ind, D.Cat(D.HardLine(), arm))
+  ELSE
+    arms := D.Cat3(D.HardLine(), lead, D.Cat(BarPad(p), D.Nest(p.ind, arm)))
+  END;
   WHILE Is(p, S.bar) DO
     k := PeekKind(p);
     IF (arms = NIL) OR (k = S.bar) OR (k = S.else) OR (k = S.end) THEN
@@ -705,7 +726,7 @@ BEGIN
       bar := TokItem(p, TRUE);
       arm := CaseArm(p);
       arms := D.Cat(arms,
-              D.Cat3(D.HardLine(), bar, D.Cat(BarPad(p), D.Nest(p.ind, arm))))
+          D.Cat3(D.HardLine(), bar, D.Cat(BarPad(p), D.Nest(p.ind, arm))))
     END
   END;
   d := D.Cat(d, arms);
@@ -918,7 +939,7 @@ BEGIN
   d := SeqDoc(q);
   IF d = NIL THEN
     d := kw
-  ELSIF (n = 1) OR (p.mode = pack)
+  ELSIF (n = 1) & (p.mode # keepLines) OR (p.mode = pack)
       OR (p.mode = keepLines) & (firstLine = kwLine) THEN
     (* on the keyword's line if they all fit there; with --keep-lines, only
        if the first one was there *)
@@ -928,6 +949,19 @@ BEGIN
   END;
   RETURN D.Cat(pre, d)
 END Section;
+
+(* The line break after BEGIN, at the first token of the body: with
+   --keep-lines, one taken only if the body's first statement does not fit
+   on BEGIN's line when the source has it there, as BEGIN RETURN x. *)
+PROCEDURE BeginBreak(p: Parser): D.Doc;
+  VAR c: D.Doc;
+BEGIN
+  IF (p.mode = keepLines) & (p.tok.line = p.last.endLine) THEN
+    c := D.NewChoice(); D.Decide(c, TRUE);
+    RETURN D.KeptLine(c)
+  END;
+  RETURN D.HardLine()
+END BeginBreak;
 
 (* [ident ":"] ident, a type-bound procedure's receiver, after VAR *)
 PROCEDURE Receiver(p: Parser): D.Doc;
@@ -966,7 +1000,8 @@ END ForceBlank;
    ";" DeclSeq [BEGIN StatementSeq] END ident; the ";" after it is the
    caller's. *)
 PROCEDURE ProcedureDecl(p: Parser): D.Doc;
-  VAR d, decls, body: D.Doc; mark: INTEGER; procs: BOOLEAN; f: D.FillBuilder;
+  VAR
+    d, decls, body, br: D.Doc; mark: INTEGER; procs: BOOLEAN; f: D.FillBuilder;
 BEGIN
   d := TokItem(p, TRUE);
   mark := p.tok.kind;
@@ -1009,9 +1044,10 @@ BEGIN
   END;
   IF Is(p, S.begin) THEN
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
+    br := BeginBreak(p);
     body := BodySeq(p);
     IF body # NIL THEN
-      d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body)))
+      d := D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))
     END
   ELSE
     d := D.Cat(d, D.Nest(p.ind, TakeLead(p)))
@@ -1069,7 +1105,7 @@ END ImportList;
 (* MODULE ident ";" [ImportList] DeclSeq [BEGIN StatementSeq] END ident ".";
    the period is not consumed, so nothing after it is scanned. *)
 PROCEDURE Module(p: Parser; moduleIndent: BOOLEAN): D.Doc;
-  VAR d, inner, body: D.Doc; procs: BOOLEAN; n: LONGINT;
+  VAR d, inner, body, br: D.Doc; procs: BOOLEAN; n: LONGINT;
 BEGIN
   IF ~Is(p, S.module) THEN Expected(p, "MODULE"); RETURN D.Empty() END;
   d := TokItem(p, TRUE);
@@ -1086,9 +1122,10 @@ BEGIN
   IF inner # NIL THEN d := D.Cat(d, D.Nest(n, D.Cat(D.HardLine(), inner))) END;
   IF Is(p, S.begin) THEN
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
+    br := BeginBreak(p);
     body := BodySeq(p);
     IF body # NIL THEN
-      d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body)))
+      d := D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))
     END
   ELSE
     d := D.Cat(d, D.Nest(n, TakeLead(p)))
@@ -1113,7 +1150,8 @@ BEGIN
   p.s := S.New(src, len);
   NEW(p.eofTok); p.eofTok.kind := S.eof; p.eofTok.text := OppText.New("");
   p.eofTok.lead := NIL; p.eofTok.trail := NIL;
-  p.mode := opts.mode; p.ind := opts.indent; p.cont := 2 * opts.indent;
+  p.mode := opts.mode; p.caseBar := opts.caseBar; p.ind := opts.indent;
+  p.cont := 2 * opts.indent;
   p.limit := opts.width * 2 DIV 3;
   p.error := FALSE; p.last := NIL;
   p.tok := p.eofTok; Advance(p);

@@ -147,9 +147,8 @@ BEGIN
         D.Cat3(Tx("F("), D.AlignOrNest(4, 5, Pair("aaa", "bbb")), Tx(")")), 8,
         "F(aaa|  bbb)|");
   Check("align or nest: nests right of the limit",
-        D.Cat3(Tx("LongName("), D.AlignOrNest(4, 5, Pair("aaa", "bbb")),
-               Tx(")")),
-        12, "LongName(aaa|    bbb)|");
+      D.Cat3(Tx("LongName("), D.AlignOrNest(4, 5, Pair("aaa", "bbb")), Tx(")")),
+      12, "LongName(aaa|    bbb)|");
   Check("soft break: none when the first item fits after it",
         D.Cat3(Tx("Proc("), D.Nest(4, SoftList(2)), Tx(")")), 11,
         "Proc(aa,|     bb)|");
@@ -316,8 +315,7 @@ BEGIN
   D.Add(f, Tx("a;")); D.Sep(f);
   D.Add(f, Tx("b;"));
   D.Add(f,
-        D.Cat3(D.Space(), D.Comment(T("(* long comment *)"), 1),
-               D.TrailBreak()));
+      D.Cat3(D.Space(), D.Comment(T("(* long comment *)"), 1), D.TrailBreak()));
   RETURN D.Fill(f)
 END FillWithComment;
 

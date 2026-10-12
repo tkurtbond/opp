@@ -1,0 +1,8 @@
+# --case-bar takes only keep, add or drop.
+program Opp
+arg --case-bar
+arg sometimes
+arg tests/data/fmt-case-bar.Mod
+status 2
+output
+opp: --case-bar takes keep, add or drop

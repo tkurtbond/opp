@@ -40,6 +40,7 @@ it writes each formatted file to standard output in turn, unless
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
+| `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
@@ -312,6 +313,13 @@ nested `s` below them. The `ELSE` of a `CASE` takes its body on its own line
 by the same rule: `ELSE z := 3` when it is one statement that fits.
 `CASE` and a `WITH` with more than one guard are always broken.
 
+A bar before a `CASE`'s first arm, as voc's sources write `CASE`
+(`CASE ch OF` then `| "a": ...` then `| "b": ...`), is kept where the
+author wrote one; `--case-bar add` puts one before every first arm, and
+`--case-bar drop` takes them away. Its labels line up with the other
+arms' either way. Comments on lines of their own before a `|` stay with
+it, before the arm or guard they describe.
+
 **One per line** (`-1`, the default): every statement starts its own line,
 and every structured statement is broken as shown.
 
@@ -333,9 +341,11 @@ stays on one line if it fits, and is broken as shown above if it does not;
 one the author broke stays broken, but a body the author wrote on its
 keyword's line (`IF a THEN x := 1` then `ELSE x := 2` then `END`) stays
 there while it fits; so does a `CASE` arm's, and one the author put on the
-next line stays there. Declarations follow the same rule, and comments
-before a declaration or statement do not stop the ones after it sharing
-its line. This
+next line stays there, as does a body on `BEGIN`'s line
+(`BEGIN RETURN x`). Declarations follow the same rule (a section's one
+declaration goes on the keyword's line only if the author put it there),
+and comments before a declaration or statement do not stop the ones after
+it sharing its line. This
 is idempotent: what opp splits, it never joins again. Whether two
 statements were on one line is decided from their tokens' line numbers in
 the source.
@@ -351,8 +361,9 @@ when an item would fit only nested.
 
 **Kept as written:** identifiers, numbers, strings and their quote
 characters, comments' text, the export marks, a trailing `;` before `END`
-(an empty last statement or field list). Empty statements elsewhere and
-empty `CASE` arms are dropped (their comments are kept).
+(an empty last statement or field list), a bar before a `CASE`'s first
+arm (see `--case-bar`). Empty statements elsewhere and empty `CASE` arms
+are dropped (their comments are kept).
 
 ## Decisions
 
@@ -385,13 +396,20 @@ empty `CASE` arms are dropped (their comments are kept).
 - **opp's own source is formatted `-k --no-module-indent`** (`make
   format`; the fixture `opp-own-source` checks it): it keeps the source's
   grouping, and its declarations at column 1 as in Ropes and oberon-tools.
+- **A `CASE`'s leading bar is kept as written by default, with
+  `--case-bar add` and `drop` to make every `CASE` alike** (2026-10-12,
+  with the user). In general, where authors' styles differ, opp keeps what
+  the author wrote and offers options to force either way.
+- **A man page, `opp.1`**, installed to `MANDIR` (default
+  `~/local/share/man/man1`) by both makefiles' `install`.
 - **`--damage N`** is in the usage, as ArgParser lists every option: it
   exists only so the fixtures can show that the safety check catches a
   changed token, comment or trailing text.
 
 ## Open questions
 
-None at present. Phase 5 may raise some from real code.
+- Whether opp should keep the tabular alignment voc's sources use (see
+  "Later"), and with which options.
 
 ## Phases
 
@@ -546,7 +564,7 @@ Done:
   and `CASE` bodies on their own line where the source has them.
 - opp's own source formatted (`make format`).
 
-### Phase 5: real-code polish
+### Phase 5: real-code polish (done 2026-10-12)
 
 - Review the corpus output for poc's sources against their hand
   formatting, and adjust the rules where opp's layout reads worse.
@@ -554,8 +572,32 @@ Done:
 - `README.md` and a man page `opp.1`; `make install`/`uninstall` for both
   builds.
 
+Done (2026-10-12):
+
+- Compared opp's output with poc's hand-formatted `src/` and `rtl/`
+  (35,000 lines) at width 130, so that only style differs, not width.
+  Apart from lines joined or broken for width, the differences were:
+  bodies on `BEGIN`'s line (`BEGIN RETURN x`) and sections whose one
+  declaration is on the line after the keyword, both of which `-k` now
+  keeps; a bar before a `CASE`'s first arm, now `--case-bar`; and places
+  where opp corrects the source's indentation.
+- Fixed: a list broken after its first item indented its continuation
+  `4s`, not `2s` (the `SoftBreak` nest and `AlignOrNest`'s both applied).
+- Fixed: a comment before a `|` went into the arm above on a second
+  formatting, so formatting was not idempotent for it; it now stays with
+  the bar. `make corpus` missed it because it did not format opp's own
+  test inputs; it now includes opp's repository and runs `--case-bar add`
+  and `drop` too: 676 files, 15 configurations, all pass.
+- `opp.1`, the man page, and `install`/`uninstall` of it in both
+  makefiles; `README.md` brought up to date.
+
 ### Later
 
+- Breaking after `:=` when the right side cannot break well, for the
+  assignments that still overflow at narrow widths.
+- Keeping tabular alignment as voc's sources use it (`| "#":      s :=
+  neq`, columns of `CONST` values), which opp now collapses to single
+  spaces: probably as a `keep as written` default, like `--case-bar`.
 - Formatting a range of lines, for editor integration.
 - Building and running opp on VAX/VMS once poc's VMS backend can.
 

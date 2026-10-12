@@ -1,0 +1,28 @@
+# With --indent 4, the labels after each bar still line up.
+program Opp
+arg --case-bar
+arg add
+arg -i
+arg 4
+arg tests/data/fmt-case-bar.Mod
+status 0
+output
+MODULE M;
+BEGIN
+    CASE ch OF
+    |   "a": x := 1 (* one *)
+    |   "b", "c": x := 2
+    ELSE x := 3
+    END;
+    CASE n OF
+    |   0: x := 1
+    |   1: x := 2
+    END;
+    CASE n OF
+    |   0: x := 1
+    END;
+    CASE n OF
+    |
+    ELSE x := 0
+    END
+END M.

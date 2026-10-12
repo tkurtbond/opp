@@ -27,7 +27,6 @@ MODULE VocExtensions;
   END Marked;
 
   PROCEDURE WriteString*(s: ARRAY [1] OF CHAR; x-: INTEGER);
-  BEGIN
-    IF 1 THEN END
+  BEGIN IF 1 THEN END
   END WriteString;
 END VocExtensions.

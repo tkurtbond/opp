@@ -45,6 +45,8 @@ PROGRAMS = Opp OppDocTest
 # that import them.
 MODULES = OppText OppScanner OppDoc OppFormat OppCheck
 BINDIR ?= $(HOME)/local/bin
+# and its man page, opp.1, to MANDIR.
+MANDIR ?= $(HOME)/local/share/man/man1
 
 .PHONY: all clean test-poc test-verbose install uninstall
 
@@ -76,9 +78,11 @@ test-verbose: all
 install: $(BUILDDIR)/Opp
 	install -d $(BINDIR)
 	install -m 755 $(BUILDDIR)/Opp $(BINDIR)/opp
+	install -d $(MANDIR)
+	install -m 644 opp.1 $(MANDIR)/opp.1
 
 uninstall:
-	rm -f $(BINDIR)/opp
+	rm -f $(BINDIR)/opp $(MANDIR)/opp.1
 
 clean:
 	-rm -rfv $(BUILDDIR)

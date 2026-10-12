@@ -4,8 +4,9 @@
 usage: corpus.py OPP KNOWN-ERRORS DIRECTORY ...
 
 Formats every .Mod file under each DIRECTORY (the files git tracks there,
-or every one if it is not a git repository) in all three modes at widths
-60, 80 and 120, and checks for each that
+or every one if it is not a git repository) in all three modes, and with
+--case-bar add and drop, at widths 60, 80 and 120, and checks for each
+that
 
   - opp succeeds: no syntax error (unless KNOWN-ERRORS lists the file) and
     no internal error, which means opp's own safety check passed;
@@ -24,10 +25,12 @@ not valid Oberon, which opp must reject; # starts a comment.
 import collections
 import concurrent.futures
 import os
+import re
 import subprocess
 import sys
 
-MODES = [['-1'], ['-p'], ['-k']]
+MODES = [['-1'], ['-p'], ['-k'], ['-1', '--case-bar', 'add'],
+         ['-k', '--case-bar', 'drop']]
 WIDTHS = [60, 80, 120]
 
 
@@ -79,12 +82,13 @@ def code_part(lines):
 
 
 def module_body(text):
-    """text up to the end of the module: the text after it is not opp's."""
+    """text up to the period that ends the module, which opp writes at the
+    start of a line as END name.: the text after it is not opp's."""
     lines = text.split('\n')
-    for i in range(len(lines) - 1, -1, -1):
-        line = lines[i]
-        if line.startswith('END ') and '.' in line:
-            return lines[:i + 1]
+    for i, line in enumerate(lines):
+        m = re.match(r'END [A-Za-z_$][A-Za-z0-9_$]*\.', line)
+        if m:
+            return lines[:i] + [line[:m.end()]]
     return lines
 
 

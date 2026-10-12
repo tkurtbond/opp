@@ -20,8 +20,7 @@ MODULE PocExtensions;
                                   n: SYSTEM.ADDRESS): SYSTEM.ADDRESS;
 
   PROCEDURE Show(s-: ARRAY OF CHAR; p-: Point);
-  BEGIN
-    ASSERT(s[0] # 0X, 20)
+  BEGIN ASSERT(s[0] # 0X, 20)
   END Show;
 
   CONST late = 2;

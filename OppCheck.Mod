@@ -7,7 +7,8 @@ MODULE OppCheck;
    sequence of tokens and comments in order. The output's sequence must be
    the source's, except that the source may have semicolons and bars the
    output leaves out (an empty statement's or field list's semicolon, an
-   empty CASE arm's bar). Tokens are compared by kind and text; comments by
+   empty CASE arm's bar), and the output may have a bar right after OF
+   that the source does not (--case-bar add: an empty first arm). Tokens are compared by kind and text; comments by
    their text, with the white space at the start and end of each line
    removed, since opp re-indents a comment's later lines. Then the text
    after the period must be the same, or white space in both.
@@ -165,7 +166,7 @@ END Describe;
 PROCEDURE Check*(src: OppText.Text; len: LONGINT; out: OppText.Text;
                  outLen: LONGINT; VAR line, column: LONGINT;
                  VAR msg: ARRAY OF CHAR): BOOLEAN;
-  VAR a, b: Stream; x, y: Item;
+  VAR a, b: Stream; x, y: Item; lastOut: INTEGER;
 BEGIN
   msg[0] := 0X; line := 1; column := 1;
   Scan(src, len, a); Scan(out, outLen, b);
@@ -173,12 +174,15 @@ BEGIN
     Append(msg, "the output does not scan: "); Append(msg, b.errorMessage);
     RETURN FALSE
   END;
-  x := a.first; y := b.first;
+  x := a.first; y := b.first; lastOut := S.eof;
   LOOP
     IF (x # NIL) & (y # NIL) & Same(x, y) THEN
+      IF y.kind # commentItem THEN lastOut := y.kind END;
       x := x.next; y := y.next
     ELSIF (x # NIL) & ((x.kind = S.semicolon) OR (x.kind = S.bar)) THEN
       x := x.next
+    ELSIF (y # NIL) & (y.kind = S.bar) & (lastOut = S.of) THEN
+      lastOut := S.bar; y := y.next
     ELSIF (x = NIL) & (y = NIL) THEN
       EXIT
     ELSE

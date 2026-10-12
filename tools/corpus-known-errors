@@ -3,3 +3,14 @@
 oberon-experiments/general/TryExtension.Mod    # RECORD without END
 oberon-experiments/general/TryLinkedList.Mod   # unfinished expression
 src/tools/HeapDump/HeapDump.Mod                # voc rejects it too
+# opp's own inputs for its error fixtures
+opp/tests/data/fmt-error-missing-end.Mod
+opp/tests/data/fmt-error-missing-semicolon.Mod
+opp/tests/data/fmt-error-no-module.Mod
+opp/tests/data/fmt-error-paren.Mod
+opp/tests/data/fmt-error-string.Mod
+opp/tests/data/scan-bad-char.Mod
+opp/tests/data/scan-bad-comment.Mod
+opp/tests/data/scan-bad-number.Mod
+opp/tests/data/scan-bad-string.Mod
+opp/tests/data/scan-numbers.Mod      # every number form, not a module
