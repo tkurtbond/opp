@@ -93,8 +93,10 @@ ok - a trailing comment in a grid ends its row
 ok - a trailing comment counts in how many columns fit
 ok - a trailing comment too long for any row does not count
 ok - a cell wider than half the line has a row of its own
+ok - a cell that cannot be flat lines up its pads but its first
+ok - a cell too wide for the line breaks as anywhere else
 ok - a first statement that fits goes on BEGIN's line
 ok - a first statement that does not fit goes on the next line
 ok - a first statement of several lines goes on the next line
 ok - a first statement broken by its choice goes on the next line
-94/94 tests passed.
+96/96 tests passed.

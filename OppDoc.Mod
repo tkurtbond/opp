@@ -41,6 +41,7 @@ CONST
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
   trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19; pad = 20;
   run = 21; anchor = 22; grid = 23; cell = 24; gap = 25; gridIn = 26;
+  skipPad = 27;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -78,7 +79,8 @@ TYPE
        starts a row, and, as the last pass met it, width and limit the
        widths of child and ref, extra that of last if it counts, col its
        column in the grid, excluded that it is left out of the columns. gap: n spaces.
-       gridIn: n is added to the renderer's inGrid. *)
+       gridIn: n is added to the renderer's inGrid. skipPad: the next
+       widen or pad, before any text, does nothing. *)
 
     (* alignment; widen: n is its width; pad: n is the author's gap, used
        when it is excluded; run, and a pad that starts a run of lines next
@@ -143,6 +145,7 @@ TYPE
     lastPad: Doc; (* the last pad met on the current line *)
     padTexts: INTEGER; (* texts and comments written after it *)
     inGrid: LONGINT; (* grids whose rows are being written *)
+    skipPad: BOOLEAN; (* a skipPad was met, and no text since *)
     lineCol, lineExtra, lineOrigin: Lines (* each line's width, extra
                                              spaces, and the line its
                                              shift comes from *)
@@ -622,7 +625,7 @@ BEGIN
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
     | gap: DEC(rem, d.n)
-    | mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn:
+    | mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn, skipPad:
     END
   END
 END Fits;
@@ -650,7 +653,8 @@ BEGIN
     | group:
         IF d.hard THEN RETURN -1 END;
         Push(local, 0, flat, d.child, TRUE)
-    | softLine, mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn:
+    | softLine, mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn,
+      skipPad:
     END
   END;
   RETURN w
@@ -789,6 +793,7 @@ END RealColumn;
    on its line puts the pad mid-line. *)
 PROCEDURE Written(VAR r: Renderer);
 BEGIN
+  r.skipPad := FALSE;
   IF r.lastPad # NIL THEN
     INC(r.padTexts);
     IF r.padTexts = 2 THEN r.lastPad.midLine := TRUE; r.lastPad := NIL END
@@ -958,8 +963,9 @@ END GridIn;
    comments end its row. A cell that cannot be flat, or is wider than half
    the line, is left out of the columns: it has a row of its own, laid out
    as it would be anywhere, its space lined up with the first column's if
-   it fits. The pads and widens of the cells are not met, but those of
-   the comments are. Whether it did. *)
+   it fits flat, or cannot be flat. The pads and widens of the cells in the columns are not met,
+   but those of the comments, and of the cells left out but for their
+   first, are. Whether it did. *)
 PROCEDURE PushGrid(VAR stack: Frame; VAR r: Renderer; ind: LONGINT; g: Doc;
                    width: LONGINT): BOOLEAN;
   VAR
@@ -1012,15 +1018,21 @@ BEGIN
       PushOne(stack, r, ind, flat, x.ref);
       PushOne(stack, r, ind, flat, Gap(names[j] - x.width + 1))
     ELSE
+      (* laid out as anywhere else, its pads lined up but the first *)
+      PushOne(stack, r, ind, broken, GridIn(1));
       PushOne(stack, r, ind, broken, x.ref);
-      IF (x.width >= 0) & (x.limit >= 0) & (names[0] > x.width)
-          & (names[0] + 1 + x.limit <= avail) THEN
+      PushOne(stack, r, ind, broken, NewNode(skipPad));
+      PushOne(stack, r, ind, broken, GridIn(-1));
+      IF (x.width >= 0) & (names[0] > x.width)
+          & ((x.limit < 0) OR (names[0] + 1 + x.limit <= avail)) THEN
         PushOne(stack, r, ind, flat, Gap(names[0] - x.width + 1))
       ELSE
         PushOne(stack, r, ind, flat, Gap(1))
       END
     END;
-    PushOne(stack, r, ind, flat, x.child);
+    IF x.excluded THEN PushOne(stack, r, ind, broken, x.child)
+    ELSE PushOne(stack, r, ind, flat, x.child)
+    END;
     IF (i > 0) & (j = 0) THEN PushOne(stack, r, ind, broken, HardLine()) END
   END;
   INC(r.inGrid);
@@ -1040,7 +1052,7 @@ BEGIN
   r.pendingPad := 0; r.pendingShift := 0; r.pendingOrigin := -1;
   r.extra := 0; r.shift := 0; r.origin := -1;
   r.lastLineBlank := FALSE; r.met := NIL; r.lastMet := NIL; r.lastPad := NIL;
-  r.inGrid := 0;
+  r.inGrid := 0; r.skipPad := FALSE;
   IF r.lineCol = NIL THEN
     NEW(r.lineCol, 256); NEW(r.lineExtra, 256); NEW(r.lineOrigin, 256)
   END;
@@ -1062,7 +1074,8 @@ BEGIN
           NewLine(r, ind, 1)
         END
     | widen:
-        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (x.n > 1)
+        IF r.skipPad THEN r.skipPad := FALSE
+        ELSIF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (x.n > 1)
             & (r.inGrid = 0) THEN
           IF r.first THEN x.on := TRUE END;
           x.line := NextLine(r); x.extra := 0;
@@ -1070,7 +1083,9 @@ BEGIN
           r.pendingPad := x.extra; Met(r, x)
         END
     | pad:
-        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (r.inGrid = 0) THEN
+        IF r.skipPad THEN r.skipPad := FALSE
+        ELSIF (r.pendingBreaks = 0) & (r.pendingSpaces = 1)
+            & (r.inGrid = 0) THEN
           IF r.first THEN
             x.excluded := FALSE; x.midLine := FALSE; x.sub := NIL;
             r.lastPad := x; r.padTexts := 0
@@ -1175,6 +1190,7 @@ BEGIN
         END
     | gap: IF r.pendingBreaks = 0 THEN INC(r.pendingSpaces, x.n) END
     | gridIn: INC(r.inGrid, x.n)
+    | skipPad: r.skipPad := TRUE
     | mark: x.n := NextLine(r)
     | anchor:
         x.line := NextLine(r);

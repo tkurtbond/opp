@@ -1,16 +1,17 @@
-# --align const with --pack: constants in a grid of straight columns, broken
-# by blank lines, leading comments and comments inside a declaration; a
-# trailing comment ends its row.
+# --align const,type,var with --pack: declarations in a grid of straight
+# columns, broken by blank lines, leading comments and comments inside a
+# declaration; a trailing comment ends its row, and a record has a row of
+# its own.
 program Opp
 arg -p
 arg -w
 arg 72
 arg --align
-arg const
+arg const,type,var
 arg tests/data/fmt-grid.Mod
 status 0
 output
-MODULE Grid; (* constants that --align const lines up in a grid *)
+MODULE Grid; (* declarations that --align lines up in a grid *)
 
   CONST one = 1; two = 2;
 
@@ -33,6 +34,23 @@ MODULE Grid; (* constants that --align const lines up in a grid *)
   CONST (* rows as the author has them *)
     red   = 0; green = 1; blue = 2; cyan = 3; magenta = 4; yellow = 5;
     black = 6; white = 7;
+
+  TYPE
+    Node = POINTER TO NodeDesc;
+    NodeDesc = RECORD
+      key: INTEGER;
+      left, right: Node
+    END;
+    Name = ARRAY 32 OF CHAR;    Proc = PROCEDURE (n: Node); Set* = SET;
+    Int  = INTEGER;             Long = LONGINT; (* sizes *)
+
+  VAR
+    i, j, k: INTEGER;      ch:   CHAR; done:   BOOLEAN; name: Name;
+    root:    Node;         x, y: REAL; count-: LONGINT; w*:   Long;
+    z:       INTEGER := 0;
+    aVeryLongName, anotherVeryLongName, yetAnotherName,
+    andOneMore: LONGINT;
+    a, b:    CHAR;
 
   PROCEDURE P;
     CONST

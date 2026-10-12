@@ -548,9 +548,29 @@ BEGIN
   RETURN Section(g, f, FALSE)
 END FourCells;
 
+(* A grid of T = RECORD, its fields lined up, and V = 1;, then a line
+   longname = X; whose = lines up with T's in run. *)
+PROCEDURE RecordCell(): D.Doc;
+  VAR g, run, fields, rest, n, d: D.Doc; f: D.FillBuilder;
+BEGIN
+  run := D.NewRun(FALSE); fields := D.NewRun(FALSE);
+  d := D.Cat3(D.HardLine(), Tx("a:"), D.Space());
+  d := D.Cat3(d, D.Pad(fields, 0), Tx("INTEGER;"));
+  d := D.Cat3(d, D.HardLine(), D.Cat3(Tx("bbb:"), D.Space(), D.Pad(fields, 0)));
+  rest := D.Cat3(D.Pad(run, 0), Tx("= RECORD"),
+                 D.Nest(2, D.Cat(d, Tx("CHAR"))));
+  rest := D.Nest(0, D.Cat3(rest, D.HardLine(), Tx("END;")));
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  n := D.Nest(0, Tx("T"));
+  D.AddCell(g, n, rest, NIL, TRUE); D.Add(f, D.Cat3(n, D.Space(), rest));
+  Cell(g, f, "V", "1;", "", FALSE, TRUE);
+  d := D.Cat3(Tx("longname"), D.Space(), D.Pad(run, 0));
+  RETURN D.Cat3(Section(g, f, FALSE), D.HardLine(), D.Cat(d, Tx("= X;")))
+END RecordCell;
+
 (* Declarations lined up in columns. *)
 PROCEDURE Grids;
-  VAR g: D.Doc; f: D.FillBuilder;
+  VAR g, n, r: D.Doc; f: D.FillBuilder;
 BEGIN
   Check("a grid has as many columns as fit", FourCells(FALSE), 21,
         "CONST|  a  = 1; bbb = 22;|  cc = 3; d   = 4444;|");
@@ -594,7 +614,17 @@ BEGIN
   Cell(g, f, "ddd", "4;", "", FALSE, FALSE);
   Check("a cell wider than half the line has a row of its own",
         Section(g, f, FALSE), 22,
-        "CONST|  a   = 1; bb = 2;|  c   = 333333;|  ddd = 4;|")
+        "CONST|  a   = 1; bb = 2;|  c   = 333333;|  ddd = 4;|");
+  Check("a cell that cannot be flat lines up its pads but its first",
+        RecordCell(), 40,
+        "CONST|  T = RECORD|    a:   INTEGER;|    bbb: CHAR|  END;|  V = 1;|longname = X;|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  n := D.Nest(0, D.Group(D.Cat3(Tx("aaaa,"), D.Line(), Tx("bbbb:"))));
+  r := D.Nest(0, Tx("INT;"));
+  D.AddCell(g, n, r, NIL, TRUE); D.Add(f, D.Cat3(n, D.Space(), r));
+  Cell(g, f, "c", "1;", "", FALSE, TRUE);
+  Check("a cell too wide for the line breaks as anywhere else",
+        Section(g, f, FALSE), 12, "CONST|  aaaa,|  bbbb: INT;|  c = 1;|")
 END Grids;
 
 (* The line after BEGIN. *)

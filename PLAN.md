@@ -193,7 +193,8 @@ what follows a group [3]; "References" below has the sources:
   (`Pad`), turning off such a run and recomputing each run's column (the
   furthest column any of its pads starts at) until the columns settle.
   The author's gaps settle first so that formatting the output again
-  changes nothing.
+  changes nothing. A line too long without its extra spaces, for a comment
+  or string that cannot break, keeps them.
 - A `Grid` is the exception: its columns' spaces count in its layout,
   which the renderer decides when it meets the grid at the start of a
   line, broken. It measures each cell flat, and lays the cells out in
@@ -203,11 +204,11 @@ what follows a group [3]; "References" below has the sources:
   cell's trailing comments end its row and count in its width, unless
   they would not fit even on a line with the cell alone. A cell that
   cannot be flat, or is wider than half the line, has a row of its own
-  outside the columns, laid out as anywhere else. The pads and widens
-  inside the cells do nothing; those of their trailing comments still
-  line them up. If no number of columns fits, or the grid is flat, it is
-  its layout, the fill it holds. A line too long without its extra spaces, for a comment
-  or string that cannot break, keeps them.
+  outside the columns, laid out as anywhere else (a record's fields still
+  line up), its space lined up with the first column's. The pads and
+  widens inside the cells in the columns do nothing; those of their
+  trailing comments still line them up. If no number of columns fits, or
+  the grid is flat, it is its layout, the fill it holds.
 - A run of pads is one run of the parser's (a section's or a record's
   declarations, or a `CASE`'s arms, up to a blank line), less the pads on
   a line holding another of the run, which keep the author's gap; or, for
@@ -460,10 +461,12 @@ survive. `--align` takes words separated by commas, later ones winning:
 space, where no word says otherwise. A run of declarations is those of a
 section or record up to a blank line; a line holding several of them
 (`-p`, `-k`) is left out of its run and keeps the author's spacing,
-except that `const` with `-p` or `-k` lines up constants in a grid: two
-or more declarations with no comment or blank line between them and no
-comment inside them (a trailing comment is allowed, and ends its row), in
-straight columns, in `-k` in the source's rows if they fit. A run
+except that `const`, `type` and `var` with `-p` or `-k` line up their
+declarations in a grid: two or more declarations with no comment or blank
+line between them and no comment inside them (a trailing comment is
+allowed, and ends its row), in straight columns, in `-k` in the source's
+rows if they fit. A variable whose `:=` `init` lines up stays out of
+grids, which cannot line it up. A run
 of assignments is a statement sequence's consecutive assignments, up to a
 blank line or another kind of statement; one that does not start its line
 (after another statement in `-p`, or on `BEGIN`'s line) is left out, as an
@@ -513,7 +516,7 @@ not lined up.
   gives it one space; `keep` and `drop` say what happens to the author's
   spaces elsewhere. One option, so a configuration file can hold it as
   one line. Only runs with one declaration to a line are lined up, not
-  the grids of packed lines, except constants (next).
+  the grids of packed lines, except declarations (next).
 - **`--align const` lines up packed constants in a grid** (2026-10-12,
   with the user): with `-p` or `-k`, constants go in straight columns,
   the same number of declarations on each row, as many as fit ("fixed
@@ -521,8 +524,10 @@ not lined up.
   if they fit, and otherwise lays them out as `-p` does, so formatting
   again changes nothing. A grid stops at a blank line, a leading comment
   and a declaration with a comment inside it, never at a row, so that the
-  rows a fill re-breaks cannot join a grid the next time. Only constants
-  so far: types and variables could follow.
+  rows a fill re-breaks cannot join a grid the next time. `--align type`
+  and `var` do the same for types and variables (2026-10-12, with the
+  user); a record type has a row of its own, its fields lined up, and a
+  variable whose initializer `init` lines up stays out of grids.
 - **`--output-dir DIR`** (2026-10-12, from `000-todo.org`): the formatted
   files go flat into `DIR` under their base names, every file named, as
   "new versions of all the files"; `DIR` must exist.
@@ -552,7 +557,7 @@ not lined up.
 
 ## Open questions
 
-- Grids for packed `TYPE` and `VAR` declarations too (see "Later").
+- None at present.
 
 ## Phases
 
@@ -748,12 +753,13 @@ Done (2026-10-12):
 - `--align const` with `-p` and `-k`: constants in grid columns
   (OppDoc's `Grid`, OppFormat's `AddDecls`); `make corpus` runs
   `-p --align all` too: 30 configurations.
+- `--align type` and `var` with `-p` and `-k`: types and variables in
+  grids too.
 
 ### Later
 
 - Breaking after `:=` when the right side cannot break well, for the
   assignments that still overflow at narrow widths.
-- Grids for packed `TYPE` and `VAR` declarations, as for constants.
 - Formatting a range of lines, for editor integration.
 - Building and running opp on VAX/VMS once poc's VMS backend can.
 

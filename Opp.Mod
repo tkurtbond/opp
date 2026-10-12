@@ -849,7 +849,7 @@ BEGIN
                                  SetCuddleEnd));
   parser.AddOption(
       ArgParser.MakeStringOption(0X, "align",
-                                 "What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space. With -p or -k, const puts constants that share lines in a grid of straight columns.",
+                                 "What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space. With -p or -k, const, type and var put declarations that share lines in a grid of straight columns.",
                                  SetAlign));
   parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",

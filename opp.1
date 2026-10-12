@@ -121,14 +121,15 @@ earlier one, and the option can be given more than once.
 the
 .B =
 of constants, or of types;
+.TP
+.BR var ", " field
+the types of variables, or of fields;
 with
 .B \-p
 or
 .BR \-k ,
-constants that share lines go in a grid of straight columns (below);
-.TP
-.BR var ", " field
-the types of variables, or of fields;
+constants, types and variables that share lines go in a grid of
+straight columns (below);
 .TP
 .B init
 the
@@ -177,16 +178,24 @@ With
 .B \-p
 or
 .BR \-k ,
-.B const
-puts constants in a grid: two or more declarations, with no blank line or
-comment between them and no comment inside them, in columns with the
-same number of declarations on each row, as many as fit, each column's
+.BR const ,
+.B type
+and
+.B var
+put their declarations in a grid: two or more declarations, with no blank
+line or comment between them and no comment inside them, in columns with
+the same number of declarations on each row, as many as fit, each
+column's
 .B =
-lined up.
+or types lined up.
 .B \-k
 keeps the source's rows if they fit.
 A trailing comment ends its row, and a declaration wider than half the
-line has a row of its own.
+line, or that cannot be on one line, as a record, has a row of its own.
+A variable whose
+.B :=
+.B init
+lines up is left out of grids.
 .TP
 .B \-\-in\-place
 Replace each file with its formatted text.

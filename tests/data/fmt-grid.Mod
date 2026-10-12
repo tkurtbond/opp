@@ -1,4 +1,4 @@
-MODULE Grid; (* constants that --align const lines up in a grid *)
+MODULE Grid; (* declarations that --align lines up in a grid *)
 
 CONST one = 1; two = 2;
 
@@ -19,6 +19,18 @@ CONST (* rows as the author has them *)
   red = 0; green = 1; blue = 2;
   cyan = 3; magenta = 4;
   yellow = 5; black = 6; white = 7;
+
+TYPE
+  Node = POINTER TO NodeDesc; NodeDesc = RECORD key: INTEGER; left, right: Node END;
+  Name = ARRAY 32 OF CHAR; Proc = PROCEDURE (n: Node); Set* = SET;
+  Int = INTEGER; Long = LONGINT; (* sizes *)
+
+VAR
+  i, j, k: INTEGER; ch: CHAR; done: BOOLEAN; name: Name; root: Node;
+  x, y: REAL; count- : LONGINT;
+  w*: Long; z: INTEGER := 0;
+  aVeryLongName, anotherVeryLongName, yetAnotherName, andOneMore: LONGINT;
+  a, b: CHAR;
 
 PROCEDURE P;
   CONST a = 1; bb = 22; ccc = 333; dddd = 4444; eeeee = 55555; ffffff = 666666;
