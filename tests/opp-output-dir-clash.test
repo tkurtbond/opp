@@ -1,0 +1,10 @@
+# --output-dir: two files of the same name would be written to one file:
+# a command line mistake, found before anything is formatted.
+program Opp
+arg --output-dir
+arg tests/data/config
+arg tests/data/formatted.Mod
+arg tests/data/config/../formatted.Mod
+status 2
+output
+opp: --output-dir: tests/data/formatted.Mod and tests/data/config/../formatted.Mod would both be written to tests/data/config/formatted.Mod

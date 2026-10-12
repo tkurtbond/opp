@@ -78,9 +78,9 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   exist, and `make format` and `tools/corpus.py` pass `--no-config`. A
   fixture that tests config files sets `env` and `dir` itself. Do not put
   a `.opp.conf` in the repository's top directory: the fixtures run there.
-- `tests/in-place.sh` checks `--in-place` on copies in a temporary
-  directory, which a fixture cannot; `make test` and `test-poc` run it
-  after the fixtures.
+- `tests/in-place.sh` checks `--in-place` and `--output-dir` on copies
+  in a temporary directory, which a fixture cannot; `make test` and
+  `test-poc` run it after the fixtures.
 - `make corpus` runs `tools/corpus.py` over `CORPUS_DIRS` (see the
   `GNUmakefile`); `tools/corpus-known-errors` lists the corpus files that
   are not valid Oberon. Any failure it prints is a bug in opp; the long
@@ -143,7 +143,7 @@ poc accept:
 | `OppDoc.Mod`     | Layout documents and the renderer that fits them to a width |
 | `OppFormat.Mod`  | Recursive-descent parser for poc + voc that builds a document |
 | `OppCheck.Mod`   | The safety check: the output has the input's tokens and comments |
-| `Opp.Mod`        | Command line, file handling, `--in-place` and `--check` |
+| `Opp.Mod`        | Command line, config files, file handling, `--in-place`, `--output-dir` and `--check` |
 
 Each module's header comment says what it does; keep them current.
 

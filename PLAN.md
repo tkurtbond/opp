@@ -30,7 +30,7 @@ opp [options] [file ...]
 
 With no files, opp formats standard input to standard output. With files,
 it writes each formatted file to standard output in turn, unless
-`--in-place` or `--check` is given.
+`--in-place`, `--output-dir` or `--check` is given.
 
 | Option | Meaning |
 | --- | --- |
@@ -44,6 +44,7 @@ it writes each formatted file to standard output in turn, unless
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
+| `--output-dir DIR` | write each file's formatted text to `DIR/` under the file's own name; `DIR` must exist |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
@@ -233,6 +234,14 @@ library can set a new file's permissions): once the file is open for
 writing, its old text is copied to `NAME.opp-backup`, which is deleted
 once the file is written and is left, and named, if writing it fails. A
 file opp cannot open, or whose backup it cannot write, is left as it was.
+`--output-dir DIR` writes every file's formatted text, changed or not, to
+the file of the same base name in `DIR`, which must exist (neither
+compiler's library can make a directory), creating or replacing it. Two
+inputs of the same base name are a command line mistake, found before
+anything is formatted; a file whose output would be the input itself
+(`Platform.SameFile`) is refused, exit 1, as `--in-place` is the way to
+format a file in place. It cannot be used with `--in-place`, `--check`,
+`--tokens` or standard input, nor in a config file.
 
 The safety check is `OppCheck`. It scans the input and the output up to
 the module's closing period, each as one sequence of tokens and comments
@@ -469,6 +478,9 @@ that would make too long a line is not lined up.
   spaces elsewhere. One option, so a configuration file can hold it as
   one line. Only runs with one declaration to a line are lined up, not
   the grids of packed lines.
+- **`--output-dir DIR`** (2026-10-12, from `000-todo.org`): the formatted
+  files go flat into `DIR` under their base names, every file named, as
+  "new versions of all the files"; `DIR` must exist.
 - **Config files** (2026-10-12, with the user, from `000-todo.org`):
   `.opp.conf` in the current directory and `opp.conf` in
   `~/.config/opp/` (or `$XDG_CONFIG_HOME/opp/`); both are read, the
@@ -678,14 +690,13 @@ Done (2026-10-12):
   configurations, all pass.
 - Config files, `~/.config/opp/opp.conf` and `./.opp.conf`, with
   `--config`, `--no-config` and `--module-indent`.
+- `--output-dir DIR`; `tests/in-place.sh` checks it too.
 
 ### Later
 
 - Breaking after `:=` when the right side cannot break well, for the
   assignments that still overflow at narrow widths.
 - Lining up packed declarations (`-p`, `-k`) in grid columns.
-- An option to write the formatted files into an output directory
-  (`000-todo.org`).
 - Formatting a range of lines, for editor integration.
 - Building and running opp on VAX/VMS once poc's VMS backend can.
 

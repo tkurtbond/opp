@@ -1,5 +1,6 @@
 #!/bin/bash
-# Check opp --in-place, which the fixtures cannot: it changes files.  Works
+# Check opp --in-place and --output-dir, which the fixtures cannot: they
+# write files.  Works
 # on copies of inputs in tests/data/, in a temporary directory, and reports
 # "in-place: N ok, M failed".  Like run-tests.sh, it runs Opp from BINDIR,
 # relative to the directory above (default: that directory itself).
@@ -89,6 +90,51 @@ if [ "$(id -u)" -ne 0 ]; then
   check "exit status 1 when the backup cannot be written (got $status)" test "$status" -eq 1
   check "a file whose backup cannot be written untouched" \
     cmp -s "$tmp/ro/s.Mod" "$data/fmt-statements.Mod"
+fi
+
+# --output-dir: each file's formatted text in the directory under its own
+# name, the inputs untouched, nothing for a file with a syntax error.
+mkdir "$tmp/in" "$tmp/outdir"
+cp "$data/fmt-statements.Mod" "$tmp/in/a.Mod"
+cp "$data/formatted.Mod" "$tmp/in/b.Mod"
+cp "$data/fmt-error-paren.Mod" "$tmp/in/c.Mod"
+echo "old text" > "$tmp/outdir/a.Mod"
+(cd "$tmp" && "$opp" --output-dir outdir in/a.Mod in/b.Mod in/c.Mod) > "$tmp/out.txt" 2>&1
+status=$?
+check "--output-dir: exit status 1 for the syntax error (got $status)" test "$status" -eq 1
+check "--output-dir: the syntax error reported, and nothing else" \
+  test "$(cat "$tmp/out.txt")" = "in/c.Mod:3:14: expected ')', found ';'"
+check "--output-dir: a file formatted, over the old one there" \
+  cmp -s "$tmp/outdir/a.Mod" "$data/formatted.Mod"
+check "--output-dir: a formatted file written too" cmp -s "$tmp/outdir/b.Mod" "$data/formatted.Mod"
+check "--output-dir: nothing for the file with the error" test ! -e "$tmp/outdir/c.Mod"
+check "--output-dir: the inputs untouched" \
+  cmp -s "$tmp/in/a.Mod" "$data/fmt-statements.Mod"
+check "--output-dir: nothing else written" test "$(ls -A "$tmp/outdir" | tr '\n' ' ')" = "a.Mod b.Mod "
+
+# The options apply, and the directory may end in a slash.
+"$opp" -p "$data/fmt-statements.Mod" > "$tmp/expected" 2>&1
+"$opp" -p --output-dir "$tmp/outdir/" "$tmp/in/a.Mod" > "$tmp/out.txt" 2>&1
+check "--output-dir with --pack" cmp -s "$tmp/outdir/a.Mod" "$tmp/expected"
+
+# A file in the directory itself is not written over.
+"$opp" --output-dir "$tmp/in" "$tmp/in/a.Mod" > "$tmp/out.txt" 2>&1
+status=$?
+check "--output-dir: exit status 1 for its own input (got $status)" test "$status" -eq 1
+check "--output-dir: its own input untouched" \
+  cmp -s "$tmp/in/a.Mod" "$data/fmt-statements.Mod"
+
+# A directory opp cannot write to (not when run as root).
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir "$tmp/rodir"
+  chmod 555 "$tmp/rodir"
+  "$opp" --output-dir "$tmp/rodir" "$tmp/in/a.Mod" > "$tmp/out.txt" 2>&1
+  status=$?
+  chmod 755 "$tmp/rodir"
+  check "--output-dir: exit status 1 for a directory it cannot write (got $status)" \
+    test "$status" -eq 1
+  check "--output-dir: cannot write reported" \
+    grep -q "^opp: cannot write $tmp/rodir/a.Mod\$" "$tmp/out.txt"
 fi
 
 echo "in-place: $ok ok, $failed failed"

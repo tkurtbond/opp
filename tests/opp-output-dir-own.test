@@ -1,0 +1,9 @@
+# --output-dir does not write over a file it formats: the directory holding
+# it is refused for that file, exit 1, and nothing is written.
+program Opp
+arg --output-dir
+arg tests/data/
+arg tests/data/formatted.Mod
+status 1
+output
+opp: --output-dir would write over tests/data/formatted.Mod itself, so nothing is written for it (--in-place formats a file in place)

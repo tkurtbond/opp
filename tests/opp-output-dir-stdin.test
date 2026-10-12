@@ -1,0 +1,7 @@
+# --output-dir needs files: standard input is a command line mistake.
+program Opp
+arg --output-dir
+arg tests/data/config
+status 2
+output
+opp: --output-dir needs files, not standard input

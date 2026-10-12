@@ -22,7 +22,8 @@ or with
 .BR \- ,
 opp reads standard input.
 It writes each formatted file to standard output in turn, unless
-.B \-\-in\-place
+.BR \-\-in\-place ,
+.B \-\-output\-dir
 or
 .B \-\-check
 is given.
@@ -146,6 +147,23 @@ which is removed once the file is written, and left, and named, if
 writing the file fails.
 Standard input cannot be formatted in place.
 .TP
+.BI \-\-output\-dir " dir"
+Write each file's formatted text to the file of the same name in
+.IR dir ,
+which must exist, creating or replacing it; every file is written, even
+one already formatted, and none for a file with a syntax error.
+Two files of the same name are a mistake, found before anything is
+written, and a file is not written over itself:
+.B \-\-in\-place
+formats a file in place.
+Standard input cannot be written to a directory, and
+.B \-\-output\-dir
+cannot be used with
+.BR \-\-in\-place ,
+.B \-\-check
+or
+.BR \-\-tokens .
+.TP
 .BR \-c ", " \-\-check
 Write no formatted text; name each file that is not already formatted,
 on standard output, and exit 1 if there is one.
@@ -203,6 +221,7 @@ Blank lines are ignored, and
 starts a comment.
 Only options that say how to format may be in a config file, not
 .BR \-\-in\-place ,
+.BR \-\-output\-dir ,
 .BR \-\-check ,
 .BR \-\-tokens ,
 .B \-\-damage
@@ -256,6 +275,12 @@ Format modules in place, packing short statements, at width 100:
 .PP
 .RS
 .B opp \-p \-w 100 \-\-in\-place *.Mod
+.RE
+.PP
+Write formatted copies of the modules here to a directory:
+.PP
+.RS
+.B opp \-\-output\-dir formatted *.Mod
 .RE
 .PP
 List the modules that are not formatted as the author grouped them:

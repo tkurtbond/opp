@@ -4,8 +4,9 @@ MODULE Opp;
 
    opp [options] [file ...] formats Oberon-2 modules written for poc or voc
    (PLAN.md, "Command line"), writing each to standard output, or with
-   --in-place back to its file, or with --check only naming the files that
-   would change. --tokens, a debugging aid, lists each file's tokens and
+   --in-place back to its file, or with --output-dir to a file of the same
+   name in a directory, or with --check only naming the files that would
+   change. --tokens, a debugging aid, lists each file's tokens and
    comments as OppScanner sees them instead.
 
    Nothing is written for a file until its formatted text passes the safety
@@ -41,6 +42,7 @@ VAR
   parser: ArgParser.Parser;
   opts: OppFormat.Options;
   inPlace, check, tokens: BOOLEAN;
+  outDir: OppText.Text; (* --output-dir's directory, or NIL *)
   damage: LONGINT;
   caseBarOK, alignOK: BOOLEAN; (* --case-bar's and --align's values were
                                    ones they take *)
@@ -168,6 +170,11 @@ PROCEDURE SetNoModuleIndent(): BOOLEAN;
 BEGIN
   opts.moduleIndent := FALSE; RETURN TRUE
 END SetNoModuleIndent;
+
+PROCEDURE SetOutputDir(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  outDir := OppText.New(val); RETURN TRUE
+END SetOutputDir;
 
 PROCEDURE SetInPlace(): BOOLEAN;
 BEGIN
@@ -463,6 +470,84 @@ BEGIN
   END
 END WriteFile;
 
+(* The last part of the file name name: what follows its last slash. *)
+PROCEDURE BaseName(name: OppText.Text): OppText.Text;
+  VAR i, start: LONGINT;
+BEGIN
+  i := 0; start := 0;
+  WHILE name[i] # 0X DO
+    IF name[i] = "/" THEN start := i + 1 END;
+    INC(i)
+  END;
+  RETURN OppText.Slice(name^, start, i - start)
+END BaseName;
+
+(* The file --output-dir writes name's formatted text to: the file of the
+   same base name in the directory. *)
+PROCEDURE OutputName(name: OppText.Text): OppText.Text;
+  VAR b: OppText.Buffer;
+BEGIN
+  b := OppText.NewBuffer(); OppText.AppendText(b, outDir);
+  IF (b.len > 0) & (b.chars[b.len - 1] # "/") THEN
+    OppText.AppendChar(b, "/")
+  END;
+  OppText.AppendText(b, BaseName(name));
+  RETURN OppText.Slice(b.chars^, 0, b.len)
+END OutputName;
+
+(* out written to the file of name's base name in --output-dir's directory,
+   created or replaced, unless that is the file name itself. *)
+PROCEDURE WriteOutput(name: OppText.Text; out: OppText.Buffer);
+  VAR target: OppText.Text; h: Platform.FileHandle; a, b: Platform.FileIdentity;
+BEGIN
+  target := OutputName(name);
+  Out.Flush;
+  IF (Platform.IdentifyByName(target^, a) = 0)
+      & (Platform.IdentifyByName(name^, b) = 0) & Platform.SameFile(a, b) THEN
+    Err.String("opp: --output-dir would write over "); Err.String(name^);
+    Err.String(
+        " itself, so nothing is written for it (--in-place formats a file in place)");
+    Err.Ln;
+    SetStatus(failureStatus)
+  ELSIF Platform.New(target^, h) # 0 THEN
+    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
+    SetStatus(failureStatus)
+  ELSIF ~WriteAll(target^, h, out) THEN
+    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
+    IF Platform.Unlink(target^) # 0 THEN END;
+    SetStatus(failureStatus)
+  END
+END WriteOutput;
+
+(* --output-dir's checks, before any file is formatted: the directory
+   exists, and no two files would be written to the same name in it. *)
+PROCEDURE CheckOutputDir;
+  VAR f, g: FileName; id: Platform.FileIdentity; t: OppText.Text;
+BEGIN
+  IF Platform.IdentifyByName(outDir^, id) # 0 THEN
+    Out.Flush;
+    Err.String("opp: --output-dir: there is no directory ");
+    Err.String(outDir^); Err.Ln;
+    Platform.Exit(ArgParser.UsageErrorStatus)
+  END;
+  f := files;
+  WHILE f # NIL DO
+    g := f.next;
+    WHILE g # NIL DO
+      IF OppText.Equal(BaseName(f.name), BaseName(g.name)) THEN
+        Out.Flush;
+        Err.String("opp: --output-dir: "); Err.String(f.name^);
+        Err.String(" and "); Err.String(g.name^);
+        Err.String(" would both be written to ");
+        t := OutputName(f.name); Err.String(t^); Err.Ln;
+        Platform.Exit(ArgParser.UsageErrorStatus)
+      END;
+      g := g.next
+    END;
+    f := f.next
+  END
+END CheckOutputDir;
+
 (* ---- Config files ---- *)
 
 (* --config and --no-config, found on the command line before ArgParser
@@ -521,7 +606,7 @@ PROCEDURE Configurable(VAR key: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   RETURN (key # "in-place") & (key # "check") & (key # "tokens")
       & (key # "damage") & (key # "help") & (key # "config")
-      & (key # "no-config")
+      & (key # "no-config") & (key # "output-dir")
 END Configurable;
 
 (* Line n of the config file name, t[from .. to - 1]: blank, or an
@@ -677,6 +762,8 @@ BEGIN
       END
     ELSIF inPlace THEN
       IF ~SameText(text, out) THEN WriteFile(name, text, out) END
+    ELSIF outDir # NIL THEN
+      WriteOutput(name, out)
     ELSE
       FOR i := 0 TO out.len - 1 DO Out.Char(out.chars[i]) END
     END
@@ -688,7 +775,7 @@ BEGIN
   opts.moduleIndent := TRUE; opts.caseBar := OppFormat.keepBar;
   opts.align := OppFormat.keepAlign; opts.lineUp := {}; opts.single := {};
   caseBarOK := TRUE; alignOK := TRUE;
-  inPlace := FALSE; check := FALSE; tokens := FALSE;
+  inPlace := FALSE; check := FALSE; tokens := FALSE; outDir := NIL;
   damage := noDamage;
   status := 0;
   files := NIL; lastFile := NIL;
@@ -737,6 +824,10 @@ BEGIN
                            "Replace each file with its formatted text.",
                            SetInPlace));
   parser.AddOption(
+      ArgParser.MakeStringOption(0X, "output-dir",
+                                 "Write each file's formatted text to the file of the same name in this directory, which must exist.",
+                                 SetOutputDir));
+  parser.AddOption(
       ArgParser.MakeOption("c", "check",
           "Write nothing; exit 1 and name each file that would change.",
           SetCheck));
@@ -775,15 +866,24 @@ BEGIN
   IF tokens & (inPlace OR check) THEN
     UsageError("--tokens cannot be used with --in-place or --check")
   END;
-  IF inPlace THEN
+  IF (outDir # NIL) & (inPlace OR check OR tokens) THEN
+    UsageError(
+        "--output-dir cannot be used with --in-place, --check or --tokens")
+  END;
+  IF inPlace OR (outDir # NIL) THEN
     lastFile := files;
     WHILE lastFile # NIL DO
       IF lastFile.name^ = "-" THEN
-        UsageError("--in-place needs files, not standard input")
+        IF inPlace THEN
+          UsageError("--in-place needs files, not standard input")
+        ELSE
+          UsageError("--output-dir needs files, not standard input")
+        END
       END;
       lastFile := lastFile.next
     END
   END;
+  IF outDir # NIL THEN CheckOutputDir END;
   WHILE files # NIL DO
     IF ReadInput(files.name, input) THEN
       IF tokens THEN ListTokens(DisplayName(files.name), input)

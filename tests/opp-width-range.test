@@ -27,6 +27,8 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.
   --in-place
       Replace each file with its formatted text.
+  --output-dir <arg>
+      Write each file's formatted text to the file of the same name in this directory, which must exist.
   -c, --check
       Write nothing; exit 1 and name each file that would change.
   --tokens

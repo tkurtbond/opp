@@ -23,7 +23,8 @@ opp [options] [file ...]
 ```
 
 With no files, or `-`, opp reads standard input. Formatted text goes to
-standard output, unless `--in-place` or `--check` is given.
+standard output, unless `--in-place`, `--output-dir` or `--check` is
+given.
 
 | Option | Meaning |
 | --- | --- |
@@ -37,6 +38,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
+| `--output-dir DIR` | write each file's formatted text to `DIR/` under the file's own name; `DIR` must exist |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
@@ -65,8 +67,8 @@ align all,nocomment
 
 A later setting wins over an earlier one: the directory's file over the
 user's, and the command line over both. Only options that say how to
-format may be in a config file; `--in-place`, `--check`, `--tokens` and
-`--damage` may not. `--config FILE` reads `FILE` instead, and
+format may be in a config file; `--in-place`, `--output-dir`, `--check`,
+`--tokens` and `--damage` may not. `--config FILE` reads `FILE` instead, and
 `--no-config` reads none. A mistake in a config file is reported as
 `file:line: message`, with exit status 2.
 

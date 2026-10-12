@@ -1,0 +1,9 @@
+# --output-dir says what to do, not how to format, so it cannot be in a
+# config file.
+program Opp
+arg --config
+arg tests/data/config/bad-output-dir.conf
+arg tests/data/formatted.Mod
+status 2
+output
+opp: tests/data/config/bad-output-dir.conf:1: --output-dir cannot be in a config file
