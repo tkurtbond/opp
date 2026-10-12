@@ -17,7 +17,7 @@ ifneq ($(if $(MAKECMDGOALS),$(filter-out clean uninstall,$(MAKECMDGOALS)),all),)
 $(foreach m,$(SHARED_MODULES),$(if $(wildcard $(addsuffix /$(m),$(subst :, ,$(VOC_OBERON_MODULES)))),,$(error $(m) is not in VOC_OBERON_MODULES ($(VOC_OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser)))
 endif
 
-PROGRAMS=Opp
+PROGRAMS=Opp OppDocTest
 
 # make install copies Opp to BINDIR, under the name opp.  VOCMAIN is -M,
 # which links statically, so it doesn't need voc's libvoc-O2.so to run.
@@ -38,6 +38,11 @@ ArgParser.o: Err.o
 Opp: Err.o OppText.o OppScanner.o
 
 OppScanner.o: OppText.o
+
+# OppDocTest checks the layout engine, OppDoc.
+OppDocTest: OppText.o OppDoc.o
+
+OppDoc.o: OppText.o
 
 
 %: %.Mod

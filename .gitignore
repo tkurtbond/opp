@@ -11,3 +11,4 @@
 *.sym
 /Opp
 /poc-build/
+/OppDocTest

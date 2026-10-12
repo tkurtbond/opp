@@ -1,0 +1,49 @@
+# OppDocTest, the checks of the layout engine OppDoc: every check passes.
+# Regenerate this from a real run when a check is added.
+program OppDocTest
+status 0
+output
+ok - text and a space
+ok - empty document
+ok - group flat when it fits
+ok - group flat at exactly the width
+ok - group broken when too long
+ok - UTF-8 counts characters, not bytes
+ok - soft line flat
+ok - soft line broken
+ok - nest
+ok - nest twice
+ok - align
+ok - align or nest: aligns left of the limit
+ok - align or nest: nests right of the limit
+ok - an empty line has no indentation
+ok - no space at the end of a line
+ok - a flat line at the end of a line leaves no space
+ok - fits looks past the end of the group
+ok - fits stops at a line that may break after the group
+ok - a hard line breaks its group
+ok - a hard line breaks the groups around it
+ok - outer group breaks, inner stays flat
+ok - a flat group keeps its inner groups flat
+ok - two hard lines make one line break
+ok - blank lines in a row make one empty line
+ok - a line left empty counts as the blank line
+ok - no blank line at the start
+ok - a later break's indentation wins
+ok - fill packs items while they fit
+ok - fill flat in a group that fits
+ok - fill counts what follows its last item
+ok - fill: what follows its last item fits exactly
+ok - fill nested continues at its indentation
+ok - fill breaks after an item that did not stay on one line
+ok - fill: a forced break
+ok - fill: a forced blank line
+ok - a comment of one line
+ok - a comment moved right moves its later lines
+ok - a comment moved left moves its later lines
+ok - a comment's lines never move left of column 1
+ok - tabs in a comment's indentation count to multiples of 8
+ok - white space at the end of a comment's lines is dropped
+ok - a comment of several lines breaks its group
+ok - a comment of one line does not break its group
+43/43 tests passed.

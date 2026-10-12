@@ -61,6 +61,10 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - `pocGNUmakefile` builds in `poc-build/`, where the sources are symlinked,
   so poc's symbol files do not overwrite voc's and poc does not mistake
   voc's generated `.c` files for modules' C parts.
+- **`OppDocTest` is the in-process check battery** of the layout engine,
+  run by `tests/opp-doc-selftest.test`, which embeds its output: after
+  adding a check, regenerate that fixture from a real run. Prove a new
+  check can fail by planting the bug it targets.
 - **Fixtures** are `tests/NAME.test` in Ropes' format (`program`, `arg`,
   `env`, `dir`, `input`, `status`, `output`); the harness is
   `tests/run-tests.sh`, copied from Ropes. Inputs a fixture formats live
@@ -90,6 +94,9 @@ poc accept:
   forward declarations for the parser's mutual recursion.
 - **Assigning a record that holds a pointer shares what it points to**;
   copy explicitly when a copy must be independent.
+- **Never pass a row of an `ARRAY OF ARRAY OF ...` parameter** (`a[i]`) as
+  an open array: voc passes the wrong elements (vishap-bugs 11). poc is
+  right, so only the voc build goes wrong.
 - **Comments nest in Oberon.** A comment in opp's source that mentions
   the comment delimiters in quotes opens a nested comment and swallows the
   rest of the module; describe them in words instead.

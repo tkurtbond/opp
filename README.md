@@ -12,8 +12,8 @@ author's own grouping. Before it writes anything it checks that its output
 has exactly the tokens and comments of its input.
 
 **Status: under construction.** Phases 0 (the repository, the builds and
-the command line) and 1 (the scanner, which `--tokens` shows) are done; opp
-does not format yet. `PLAN.md` has the design
+the command line), 1 (the scanner, which `--tokens` shows) and 2 (the
+layout engine) are done; opp does not format yet. `PLAN.md` has the design
 and the phases.
 
 ## Usage

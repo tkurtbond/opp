@@ -380,13 +380,24 @@ Each phase ends with `make test`, `make -f pocGNUmakefile test-poc` and
   scans (`OPT.Mod`, `MultiArrays.Mod`, `MultiArrayRiders.Mod`,
   `ethUnicode.Mod`).
 
-### Phase 2: layout engine
+### Phase 2: layout engine (done 2026-10-12)
 
-- `OppDoc.Mod` with every node kind above.
-- A small in-process check program, `OppDocTest.Mod`, in the style of
-  `RopeTest` (`ok -`/`not ok -` lines, `N/M tests passed.`), checking
-  groups, nesting, alignment, fill, lazy and blank lines, trailing white
-  space, and comment re-indentation at several widths.
+- `OppDoc.Mod` with every node kind above, plus `Space` (a lazy space, so
+  no line ends in white space) and a `FillBuilder` that assembles fills:
+  each item is a concatenation of its own, so a separator measures the
+  whole item after it, and begins with a mark recording the line it starts
+  on, so a separator after an item that did not stay on one line breaks.
+- `OppDocTest.Mod`, in the style of `RopeTest` (`ok -`/`not ok -` lines,
+  `N/M tests passed.`, exit 1 on a failure), run by the fixture
+  `opp-doc-selftest`: 43 checks of groups, nesting, alignment, fill, lazy
+  and blank lines, trailing white space, UTF-8 widths and comment
+  re-indentation, each width boundary checked on both sides.
+- Each of six bugs planted in a copy of `OppDoc.Mod` (Fits ignoring what
+  follows a group, blank lines not collapsed, fill ignoring a broken item,
+  comments not re-indented, hard breaks not propagated, line breaks not
+  lazy) makes at least one check fail.
+- Found on the way: voc passes a row of an open two-dimensional array
+  wrongly (vishap-bugs 11; `AGENTS.md`).
 
 ### Phase 3: parser and printer
 
