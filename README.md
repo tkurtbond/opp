@@ -33,17 +33,42 @@ standard output, unless `--in-place` or `--check` is given.
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
+| `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
+| `--config FILE` | read options from `FILE` instead of the config files |
+| `--no-config` | read no config file |
 | `-h`, `--help` | show the usage and exit |
 
 Exit status: 0 success; 1 a syntax error, an unreadable file, or (with
-`--check`) a file that would change; 2 a command line mistake; 3 an
-internal error.
+`--check`) a file that would change; 2 a command line or config file
+mistake; 3 an internal error.
+
+## Config files
+
+Before the command line, opp reads options from config files: the user's,
+`$XDG_CONFIG_HOME/opp/opp.conf` (or `~/.config/opp/opp.conf`), then the
+current directory's, `.opp.conf`. Each line is an option as the command
+line gives it, without its `--` if you like, its value after a space or
+`=`; `#` starts a comment:
+
+```
+# ~/.config/opp/opp.conf
+width = 100
+pack
+align all,nocomment
+```
+
+A later setting wins over an earlier one: the directory's file over the
+user's, and the command line over both. Only options that say how to
+format may be in a config file; `--in-place`, `--check`, `--tokens` and
+`--damage` may not. `--config FILE` reads `FILE` instead, and
+`--no-config` reads none. A mistake in a config file is reported as
+`file:line: message`, with exit status 2.
 
 ## Building, testing and installing
 

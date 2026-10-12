@@ -49,6 +49,10 @@ bindir=${BINDIR:-.}
 cd "$(dirname "$0")/.." || exit 2
 root=$PWD
 
+# A user's own opp.conf must not change what the fixtures show: opp looks
+# for it in this directory, which does not exist, unless a fixture says.
+export XDG_CONFIG_HOME=$root/tests/data/config/none
+
 fixtures=()
 if [ $# -eq 0 ]; then
   fixtures=(tests/*.test)

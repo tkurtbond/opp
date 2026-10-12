@@ -18,6 +18,8 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       Keep statements and declarations on shared lines where the source has them, while they fit.
   --no-module-indent
       Start a module's declarations at column 1; its statements stay indented.
+  --module-indent
+      Indent a module's declarations (the default).
   --case-bar <arg>
       A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).
   --align <arg>
@@ -30,5 +32,9 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       List each file's tokens and comments instead of formatting it (a debugging aid).
   --damage <arg>
       For opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) to show that the safety check catches it.
+  --config <arg>
+      Read options from this file, instead of from ~/.config/opp/opp.conf and ./.opp.conf.
+  --no-config
+      Read no config file.
   -h, --help
       Show this help and exit.

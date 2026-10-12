@@ -1,0 +1,8 @@
+# A file --config names that cannot be opened is a command line mistake.
+program Opp
+arg --config
+arg tests/data/config/no-such.conf
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: cannot open config file tests/data/config/no-such.conf

@@ -97,6 +97,7 @@ def module_body(text):
 def check(opp, path, args, width, known):
     """The problems with formatting path, and the long lines of the output."""
     problems, long_special, long_code = [], 0, []
+    args = ['--no-config'] + args
     r = subprocess.run([opp] + args + [path], capture_output=True)
     if r.returncode != 0:
         expected = r.returncode == 1 and any(path.endswith(k) for k in known)

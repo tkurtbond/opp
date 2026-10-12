@@ -12,9 +12,16 @@ MODULE Opp;
    check: OppCheck finds the input's tokens and comments in it, and it
    parses again. A failure is an internal error, exit status 3. --damage,
    for opp's own tests, spoils the formatted text first, to show that the
-   check catches it. *)
+   check catches it.
 
-IMPORT SYSTEM, ArgParser, Err, In, Out, Platform, OppText, OppScanner,
+   Before the command line, opp reads its options from the config files,
+   each line an option as the command line gives it: the user's
+   ($XDG_CONFIG_HOME/opp/opp.conf, or ~/.config/opp/opp.conf), then the
+   current directory's (.opp.conf), so the command line overrides both and
+   the directory's overrides the user's. --config names the one file to
+   read instead, and --no-config reads none. *)
+
+IMPORT SYSTEM, ArgParser, Args, Err, In, Out, Platform, OppText, OppScanner,
     OppFormat, OppCheck;
 
 CONST
@@ -37,6 +44,8 @@ VAR
   damage: LONGINT;
   caseBarOK, alignOK: BOOLEAN; (* --case-bar's and --align's values were
                                    ones they take *)
+  configFile: OppText.Text; (* --config's file, or NIL *)
+  noConfig: BOOLEAN; (* --no-config *)
   status: INTEGER; (* the exit status so far *)
   files, lastFile: FileName;
   input: OppText.Buffer;
@@ -138,6 +147,22 @@ BEGIN
   UNTIL i < 0;
   RETURN TRUE
 END SetAlign;
+
+PROCEDURE SetModuleIndent(): BOOLEAN;
+BEGIN
+  opts.moduleIndent := TRUE; RETURN TRUE
+END SetModuleIndent;
+
+(* --config and --no-config, which FindConfigOptions has read already. *)
+PROCEDURE SetConfig(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  RETURN TRUE
+END SetConfig;
+
+PROCEDURE SetNoConfig(): BOOLEAN;
+BEGIN
+  RETURN TRUE
+END SetNoConfig;
 
 PROCEDURE SetNoModuleIndent(): BOOLEAN;
 BEGIN
@@ -438,6 +463,195 @@ BEGIN
   END
 END WriteFile;
 
+(* ---- Config files ---- *)
+
+(* --config and --no-config, found on the command line before ArgParser
+   reads it, as they say which config files to read before it. The last
+   one wins; nothing after -- is an option. *)
+PROCEDURE FindConfigOptions;
+  VAR i, j: INTEGER; arg: ArgParser.String;
+BEGIN
+  configFile := NIL; noConfig := FALSE; i := 1;
+  WHILE i < Args.argc DO
+    Args.Get(i, arg);
+    IF arg = "--" THEN
+      i := Args.argc
+    ELSIF arg = "--no-config" THEN
+      noConfig := TRUE; configFile := NIL
+    ELSIF arg = "--config" THEN
+      IF i + 1 < Args.argc THEN
+        INC(i); Args.Get(i, arg); configFile := OppText.New(arg);
+        noConfig := FALSE
+      END
+    ELSIF (arg[0] = "-") & (arg[1] = "-") & (arg[2] = "c") & (arg[3] = "o")
+        & (arg[4] = "n") & (arg[5] = "f") & (arg[6] = "i") & (arg[7] = "g")
+        & (arg[8] = "=") THEN
+      j := 0;
+      WHILE arg[j + 9] # 0X DO arg[j] := arg[j + 9]; INC(j) END;
+      arg[j] := 0X;
+      configFile := OppText.New(arg); noConfig := FALSE
+    END;
+    INC(i)
+  END
+END FindConfigOptions;
+
+(* Starts the report of a mistake on line n of the config file name. *)
+PROCEDURE ConfigError(name: OppText.Text; n: LONGINT);
+BEGIN
+  Out.Flush;
+  Err.String("opp: "); Err.String(name^); Err.Char(":"); ErrNumber(n);
+  Err.String(": ")
+END ConfigError;
+
+(* Ends that report, with exit status 2. *)
+PROCEDURE EndConfigError;
+BEGIN
+  Err.Ln;
+  Platform.Exit(ArgParser.UsageErrorStatus)
+END EndConfigError;
+
+PROCEDURE IsBlank(ch: CHAR): BOOLEAN;
+BEGIN
+  RETURN (ch = " ") OR (ch = 9X) OR (ch = 0DX)
+END IsBlank;
+
+(* Whether the option named key may be in a config file: those that say
+   how to format, not what to do. *)
+PROCEDURE Configurable(VAR key: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  RETURN (key # "in-place") & (key # "check") & (key # "tokens")
+      & (key # "damage") & (key # "help") & (key # "config")
+      & (key # "no-config")
+END Configurable;
+
+(* Line n of the config file name, t[from .. to - 1]: blank, or an
+   option's long name, with or without --, then its value, if it takes
+   one, after white space or =; # starts a comment. *)
+PROCEDURE ConfigLine(name: OppText.Text; n: LONGINT; VAR t: ARRAY OF CHAR;
+                     from, to: LONGINT);
+  VAR
+    k, e, m, v: LONGINT; key: ARRAY 64 OF CHAR; val: ArgParser.String;
+    opt: ArgParser.Option;
+BEGIN
+  e := from;
+  WHILE (e < to) & (t[e] # "#") DO INC(e) END;
+  WHILE (e > from) & IsBlank(t[e - 1]) DO DEC(e) END;
+  k := from;
+  WHILE (k < e) & IsBlank(t[k]) DO INC(k) END;
+  IF k = e THEN RETURN END;
+  IF (k + 1 < e) & (t[k] = "-") & (t[k + 1] = "-") THEN INC(k, 2) END;
+  m := 0;
+  WHILE (k < e) & ~IsBlank(t[k]) & (t[k] # "=") DO
+    IF m < LEN(key) - 1 THEN key[m] := t[k]; INC(m) END;
+    INC(k)
+  END;
+  key[m] := 0X;
+  WHILE (k < e) & IsBlank(t[k]) DO INC(k) END;
+  IF (k < e) & (t[k] = "=") THEN
+    INC(k);
+    WHILE (k < e) & IsBlank(t[k]) DO INC(k) END
+  END;
+  m := 0;
+  WHILE k < e DO
+    IF m < LEN(val) - 1 THEN val[m] := t[k]; INC(m) END;
+    INC(k)
+  END;
+  val[m] := 0X;
+  opt := parser.options;
+  WHILE (opt # NIL) & (opt.longName # key) DO opt := opt.next END;
+  IF (opt = NIL) OR (key = "") THEN
+    ConfigError(name, n); Err.String("unknown option "); Err.String(key);
+    EndConfigError
+  ELSIF ~Configurable(key) THEN
+    ConfigError(name, n); Err.String("--"); Err.String(key);
+    Err.String(" cannot be in a config file"); EndConfigError
+  ELSIF opt.kind = ArgParser.NoArgOption THEN
+    IF val # "" THEN
+      ConfigError(name, n); Err.String("--"); Err.String(key);
+      Err.String(" takes no value"); EndConfigError
+    END;
+    IF opt.handler() THEN END
+  ELSIF val = "" THEN
+    ConfigError(name, n); Err.String("--"); Err.String(key);
+    Err.String(" needs a value"); EndConfigError
+  ELSIF opt.kind = ArgParser.StringOption THEN
+    IF opt.stringHandler(val) THEN END;
+    IF ~caseBarOK OR ~alignOK THEN
+      ConfigError(name, n); Err.String("--"); Err.String(key);
+      Err.String(" does not take "); Err.String(val); EndConfigError
+    END
+  ELSIF ~ArgParser.StrToInt(val, v) OR (v < opt.minInt) OR (v > opt.maxInt) THEN
+    ConfigError(name, n); Err.String("--"); Err.String(key);
+    Err.String(" takes a number from "); ErrNumber(opt.minInt);
+    Err.String(" to "); ErrNumber(opt.maxInt); EndConfigError
+  ELSE
+    IF opt.intHandler(v) THEN END
+  END
+END ConfigLine;
+
+(* The options in the config file name; if it does not exist, nothing,
+   unless required. *)
+PROCEDURE ReadConfig(name: OppText.Text; required: BOOLEAN);
+  VAR h: Platform.FileHandle; text: OppText.Buffer; i, j, n: LONGINT;
+BEGIN
+  IF Platform.OldRO(name^, h) # 0 THEN
+    IF required THEN
+      Out.Flush;
+      Err.String("opp: cannot open config file "); Err.String(name^); Err.Ln;
+      Platform.Exit(ArgParser.UsageErrorStatus)
+    END;
+    RETURN
+  END;
+  IF Platform.Close(h) # 0 THEN END;
+  IF ~ReadInput(name, text) THEN
+    Out.Flush; Platform.Exit(ArgParser.UsageErrorStatus)
+  END;
+  i := 0; n := 1;
+  WHILE i < text.len DO
+    j := i;
+    WHILE (j < text.len) & (text.chars[j] # 0AX) DO INC(j) END;
+    ConfigLine(name, n, text.chars^, i, j);
+    i := j + 1; INC(n)
+  END
+END ReadConfig;
+
+(* The user's config file: opp/opp.conf in $XDG_CONFIG_HOME, or else in
+   ~/.config; NIL if neither variable is set. *)
+PROCEDURE UserConfig(): OppText.Text;
+  VAR dir: ArgParser.String; b: OppText.Buffer; i: LONGINT;
+BEGIN
+  b := OppText.NewBuffer();
+  IF Platform.getEnv("XDG_CONFIG_HOME", dir) & (dir # "") THEN
+    i := 0;
+    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
+  ELSIF Platform.getEnv("HOME", dir) & (dir # "") THEN
+    i := 0;
+    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
+    dir := "/.config"; i := 0;
+    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END
+  ELSE
+    RETURN NIL
+  END;
+  dir := "/opp/opp.conf"; i := 0;
+  WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
+  RETURN OppText.Slice(b.chars^, 0, b.len)
+END UserConfig;
+
+(* Reads the config files the command line asks for. *)
+PROCEDURE ReadConfigs;
+  VAR user: OppText.Text;
+BEGIN
+  FindConfigOptions;
+  IF noConfig THEN
+  ELSIF configFile # NIL THEN
+    ReadConfig(configFile, TRUE)
+  ELSE
+    user := UserConfig();
+    IF user # NIL THEN ReadConfig(user, FALSE) END;
+    ReadConfig(OppText.New(".opp.conf"), FALSE)
+  END
+END ReadConfigs;
+
 (* Formats a file, name its name and display its name in messages, and
    checks the result; then writes it to standard output, or back to the
    file with --in-place, or with --check names the file if it would
@@ -507,6 +721,10 @@ BEGIN
                            "Start a module's declarations at column 1; its statements stay indented.",
                            SetNoModuleIndent));
   parser.AddOption(
+      ArgParser.MakeOption(0X, "module-indent",
+                           "Indent a module's declarations (the default).",
+                           SetModuleIndent));
+  parser.AddOption(
       ArgParser.MakeStringOption(0X, "case-bar",
                                  "A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).",
                                  SetCaseBar));
@@ -531,7 +749,15 @@ BEGIN
                               "For opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) to show that the safety check catches it.",
                               SetDamage, 1, 3));
   parser.AddOption(
+      ArgParser.MakeStringOption(0X, "config",
+                                 "Read options from this file, instead of from ~/.config/opp/opp.conf and ./.opp.conf.",
+                                 SetConfig));
+  parser.AddOption(
+      ArgParser.MakeOption(0X, "no-config", "Read no config file.",
+                           SetNoConfig));
+  parser.AddOption(
       ArgParser.MakeOption("h", "help", "Show this help and exit.", Help));
+  ReadConfigs;
   parser.ParseArguments(1);
 
   IF files = NIL THEN

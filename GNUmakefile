@@ -106,7 +106,7 @@ corpus: Opp
 OPP_SOURCES = Opp.Mod OppCheck.Mod OppDoc.Mod OppDocTest.Mod OppFormat.Mod \
   OppScanner.Mod OppText.Mod
 format: Opp
-	./Opp --in-place -k --no-module-indent $(OPP_SOURCES)
+	./Opp --no-config --in-place -k --no-module-indent $(OPP_SOURCES)
 
 install: Opp
 	install -d $(BINDIR)

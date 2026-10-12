@@ -1,0 +1,9 @@
+# A config file with an option opp does not have: file:line: message, exit 2,
+# and nothing formatted.
+program Opp
+arg --config
+arg tests/data/config/bad-unknown.conf
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: tests/data/config/bad-unknown.conf:2: unknown option squash

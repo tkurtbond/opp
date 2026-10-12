@@ -1,0 +1,9 @@
+# A config file with no value for an option that needs one: file:line: message, exit 2,
+# and nothing formatted.
+program Opp
+arg --config
+arg tests/data/config/bad-missing.conf
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: tests/data/config/bad-missing.conf:1: --case-bar needs a value

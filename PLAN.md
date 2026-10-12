@@ -40,16 +40,32 @@ it writes each formatted file to standard output in turn, unless
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
+| `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
 | `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
+| `--config FILE` | read options from `FILE` instead of the config files |
+| `--no-config` | read no config file |
 | `-h`, `--help` | show the usage and exit 0 |
 
 `--one-per-line`, `--pack` and `--keep-lines` choose the statement mode;
 when more than one is given, the last one wins.
+
+**Config files.** Before the command line, opp reads the user's config
+file, `$XDG_CONFIG_HOME/opp/opp.conf` (or `~/.config/opp/opp.conf`), then
+the current directory's, `.opp.conf`: one option to a line, as the command
+line gives it, its `--` optional, its value after white space or `=`; `#`
+starts a comment. Later settings win, so the directory's file overrides
+the user's, and the command line both. Only options that say how to format
+may be there. `--config FILE` reads `FILE` instead; `--no-config` reads
+none; of the two, the last given wins. A mistake is `opp: file:line:
+message`, exit status 2. ArgParser parses only the command line, so opp
+finds each option in the parser's exported list and calls its handler
+itself; `--config` and `--no-config` are found by a scan of the command
+line before the files are read.
 
 ## The syntax opp accepts
 
@@ -453,6 +469,15 @@ that would make too long a line is not lined up.
   spaces elsewhere. One option, so a configuration file can hold it as
   one line. Only runs with one declaration to a line are lined up, not
   the grids of packed lines.
+- **Config files** (2026-10-12, with the user, from `000-todo.org`):
+  `.opp.conf` in the current directory and `opp.conf` in
+  `~/.config/opp/` (or `$XDG_CONFIG_HOME/opp/`); both are read, the
+  directory's after the user's, then the command line, each later setting
+  winning, as git's configuration layers. `--module-indent` was added so
+  the command line can undo a config file's `no-module-indent`. The test
+  scripts point `XDG_CONFIG_HOME` at a directory that does not exist, and
+  `make format` and `make corpus` pass `--no-config`, so a user's config
+  never changes them.
 - **Extra spaces never change where lines break**: layout ignores them,
   and a line they would make too long loses them, unless it is too long
   without them.
@@ -651,15 +676,14 @@ Done (2026-10-12):
   comments and `CASE` bodies (OppDoc's `Pad` and the renderer's passes);
   `make corpus` runs `--align drop`, `all` and `all,drop` too: 24
   configurations, all pass.
+- Config files, `~/.config/opp/opp.conf` and `./.opp.conf`, with
+  `--config`, `--no-config` and `--module-indent`.
 
 ### Later
 
 - Breaking after `:=` when the right side cannot break well, for the
   assignments that still overflow at narrow widths.
 - Lining up packed declarations (`-p`, `-k`) in grid columns.
-- A configuration file (`000-todo.org`), searched for in the current
-  directory and in `~/.config/opp/`, holding options as the command line
-  gives them.
 - An option to write the formatted files into an output directory
   (`000-todo.org`).
 - Formatting a range of lines, for editor integration.

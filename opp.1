@@ -70,6 +70,10 @@ The statements after its
 .B BEGIN
 are still indented.
 .TP
+.B \-\-module\-indent
+Indent a module's declarations, the default: to undo a config file's
+.BR no\-module\-indent .
+.TP
 .BI \-\-case\-bar " what"
 What to do with a bar before the first arm of a
 .BR CASE :
@@ -154,6 +158,19 @@ of formatting it; a debugging aid.
 For opp's own tests: spoil the formatted text (1 a token, 2 a comment,
 3 the text after the module) to show that the check catches it.
 .TP
+.BI \-\-config " file"
+Read options from
+.I file
+instead of from the config files below.
+.TP
+.B \-\-no\-config
+Read no config file.
+Of
+.B \-\-config
+and
+.BR \-\-no\-config ,
+the last given wins.
+.TP
 .BR \-h ", " \-\-help
 Show the usage and exit.
 .PP
@@ -163,6 +180,49 @@ When more than one of
 and
 .B \-k
 is given, the last one wins.
+.SH CONFIG FILES
+Before the command line, opp reads options from the user's config file,
+.IR $XDG_CONFIG_HOME /opp/opp.conf,
+or
+.I \(ti/.config/opp/opp.conf
+when
+.B XDG_CONFIG_HOME
+is not set, and then from the current directory's,
+.IR .opp.conf .
+A later setting wins over an earlier one: the current directory's file
+over the user's, and the command line over both.
+Either file may be missing.
+.PP
+Each line holds one option as the command line gives it, by its long
+name, with or without its
+.BR \-\- ;
+an option's value follows after white space or
+.BR = .
+Blank lines are ignored, and
+.B #
+starts a comment.
+Only options that say how to format may be in a config file, not
+.BR \-\-in\-place ,
+.BR \-\-check ,
+.BR \-\-tokens ,
+.B \-\-damage
+or
+.BR \-\-help .
+For example:
+.PP
+.RS
+.nf
+# \(ti/.config/opp/opp.conf
+width = 100
+pack
+align all,nocomment
+.fi
+.RE
+.PP
+A mistake in a config file is reported as
+.IB file : line :
+.I message
+and opp exits with status 2.
 .SH EXIT STATUS
 .TP
 .B 0
@@ -174,7 +234,7 @@ A syntax error or a file that cannot be read or written, or with
 a file that is not formatted.
 .TP
 .B 2
-A mistake on the command line.
+A mistake on the command line or in a config file.
 .TP
 .B 3
 An internal error: a formatted text failed the check, and was not
@@ -203,6 +263,15 @@ List the modules that are not formatted as the author grouped them:
 .RS
 .B opp \-k \-\-check *.Mod
 .RE
+.SH FILES
+.TP
+.I \(ti/.config/opp/opp.conf
+The user's config file
+.RI ( $XDG_CONFIG_HOME /opp/opp.conf
+if that is set).
+.TP
+.I .opp.conf
+The current directory's config file.
 .SH SEE ALSO
 .BR poc (1),
 .BR voc (1)

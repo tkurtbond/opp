@@ -12,6 +12,7 @@ case $bindir in
   *)  opp=$root/$bindir/Opp ;;
 esac
 data=$root/tests/data
+export XDG_CONFIG_HOME=$data/config/none   # no user's opp.conf
 
 tmp=$(mktemp -d) || exit 2
 trap 'rm -rf "$tmp"' EXIT

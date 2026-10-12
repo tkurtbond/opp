@@ -1,0 +1,9 @@
+# A config file with a value the option does not take: file:line: message, exit 2,
+# and nothing formatted.
+program Opp
+arg --config
+arg tests/data/config/bad-word.conf
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: tests/data/config/bad-word.conf:1: --align does not take all,sideways

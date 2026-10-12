@@ -73,6 +73,11 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   it carefully before committing it**; never hand-edit generated text.
   Build fixture argument lists in Python (`subprocess` with a list), not
   with a shell `eval`.
+- **A user's config file must never reach the tests.** `run-tests.sh`
+  and `in-place.sh` point `XDG_CONFIG_HOME` at a directory that does not
+  exist, and `make format` and `tools/corpus.py` pass `--no-config`. A
+  fixture that tests config files sets `env` and `dir` itself. Do not put
+  a `.opp.conf` in the repository's top directory: the fixtures run there.
 - `tests/in-place.sh` checks `--in-place` on copies in a temporary
   directory, which a fixture cannot; `make test` and `test-poc` run it
   after the fixtures.
