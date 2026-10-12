@@ -33,7 +33,7 @@ CONST
   text = 0; space = 1; line = 2; softLine = 3; hardLine = 4; blankLine = 5;
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
-  trailBreak = 16; softBreak = 17;
+  trailBreak = 16; softBreak = 17; keptLine = 18;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -44,28 +44,29 @@ TYPE
   Doc* = POINTER TO DocDesc;
   DocDesc = RECORD
     kind: INTEGER;
-    text: OppText.Text;   (* text, comment *)
-    width: LONGINT;       (* text: its width; comment: its first line's *)
-    n: LONGINT;           (* nest, alignOrNest: the indentation added;
-                             comment: the column it started at in the
-                             source; mark: the line it was printed on;
-                             choice: 1 if its lines are hard, else 0 *)
-    limit: LONGINT;       (* alignOrNest: the last column to align to *)
-    multiLine: BOOLEAN;   (* comment: its text holds a line break *)
-    hard: BOOLEAN;        (* group: it holds a hard break (Propagate) *)
-    child: Doc;           (* nest, align, alignOrNest, group: the content;
-                             concat: the first part *)
-    last: Doc;            (* concat: the last part *)
-    ref: Doc;             (* fillLine: the mark before the item before it;
-                             choiceLine: its choice; softBreak: its fill *)
-    next: Doc             (* the next part of a concatenation *)
+    text: OppText.Text; (* text, comment *)
+    width: LONGINT; (* text: its width; comment: its first line's *)
+    n: LONGINT; (* nest, alignOrNest: the indentation added;
+                   comment: the column it started at in the
+                   source; mark: the line it was printed on;
+                   choice: 1 if its lines are hard, else 0 *)
+    limit: LONGINT; (* alignOrNest: the last column to align to *)
+    multiLine: BOOLEAN; (* comment: its text holds a line break *)
+    hard: BOOLEAN; (* group: it holds a hard break (Propagate) *)
+    child: Doc; (* nest, align, alignOrNest, group: the content;
+                   concat: the first part *)
+    last: Doc; (* concat: the last part *)
+    ref: Doc; (* fillLine: the mark before the item before it;
+                 choiceLine, keptLine: its choice; softBreak: its
+                             fill *)
+    next: Doc (* the next part of a concatenation *)
   END;
 
   FillBuilder* = RECORD
-    doc: Doc;             (* the fill so far, a concatenation *)
-    item: Doc;            (* the current item, a concatenation, or NIL
-                             after a separator *)
-    mark: Doc             (* the mark that begins the current item *)
+    doc: Doc; (* the fill so far, a concatenation *)
+    item: Doc; (* the current item, a concatenation, or NIL
+                  after a separator *)
+    mark: Doc (* the mark that begins the current item *)
   END;
 
   (* A frame of the renderer's stack: print doc and, if chain is set, the
@@ -82,18 +83,18 @@ TYPE
   Renderer = RECORD
     out: OppText.Buffer;
     width: LONGINT;
-    col: LONGINT;           (* columns written on the current line *)
-    lineNo: LONGINT;        (* line breaks written *)
+    col: LONGINT; (* columns written on the current line *)
+    lineNo: LONGINT; (* line breaks written *)
     pendingBreaks: INTEGER; (* 0, or 1 for a line break, 2 for a blank line *)
     pendingIndent: LONGINT; (* the indentation of the pending line break *)
     pendingSpaces: LONGINT;
-    lastLineBlank: BOOLEAN  (* the line before the current one is empty *)
+    lastLineBlank: BOOLEAN (* the line before the current one is empty *)
   END;
 
 (* ---- Building documents ---- *)
 
 PROCEDURE NewNode(kind: INTEGER): Doc;
-VAR d: Doc;
+  VAR d: Doc;
 BEGIN
   NEW(d); d.kind := kind; d.text := NIL; d.width := 0; d.n := 0; d.limit := 0;
   d.multiLine := FALSE; d.hard := FALSE;
@@ -102,7 +103,7 @@ BEGIN
 END NewNode;
 
 PROCEDURE TextOf*(t: OppText.Text): Doc;
-VAR d: Doc;
+  VAR d: Doc;
 BEGIN
   d := NewNode(text); d.text := t; d.width := OppText.Width(t^);
   RETURN d
@@ -151,7 +152,7 @@ END TrailBreak;
    it. A fill of one item is measured with what follows it, up to the next
    line break. *)
 PROCEDURE SoftBreak*(fill: Doc): Doc;
-VAR d: Doc;
+  VAR d: Doc;
 BEGIN
   d := NewNode(softBreak); d.ref := fill;
   RETURN d
@@ -168,7 +169,7 @@ END BlankLine;
    for the lines of a structured statement whose layout is known only once
    it has all been parsed. Undecided, its lines may be flat. *)
 PROCEDURE NewChoice*(): Doc;
-VAR c: Doc;
+  VAR c: Doc;
 BEGIN
   c := NewNode(choice); c.n := 0;
   RETURN c
@@ -181,15 +182,26 @@ END Decide;
 
 (* A Line, or a HardLine, as c is decided. *)
 PROCEDURE ChoiceLine*(c: Doc): Doc;
-VAR d: Doc;
+  VAR d: Doc;
 BEGIN
   d := NewNode(choiceLine); d.ref := c;
   RETURN d
 END ChoiceLine;
 
+(* A ChoiceLine(c) while c is soft; once c is decided hard, a line break
+   only if what follows it does not fit on the line, as Group(Line()): the
+   line between a keyword and a body that --keep-lines keeps on the
+   keyword's line in a statement it breaks. *)
+PROCEDURE KeptLine*(c: Doc): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(keptLine); d.ref := c;
+  RETURN d
+END KeptLine;
+
 (* d, with its line breaks indented n more. *)
 PROCEDURE Nest*(n: LONGINT; d: Doc): Doc;
-VAR r: Doc;
+  VAR r: Doc;
 BEGIN
   r := NewNode(nest); r.n := n; r.child := d;
   RETURN r
@@ -197,16 +209,18 @@ END Nest;
 
 (* d, with its line breaks indented to the column it starts at. *)
 PROCEDURE Align*(d: Doc): Doc;
-VAR r: Doc;
+  VAR r: Doc;
 BEGIN
   r := NewNode(align); r.child := d;
   RETURN r
 END Align;
 
 (* Align(d) if d starts at or left of column limit (counted from 0), and
-   otherwise Nest(n, d). *)
+   otherwise Nest(n, d). When d is a fill, it is nested also when one of
+   its items would not fit on a line of its own aligned but would nested;
+   the last item is measured with what follows it. *)
 PROCEDURE AlignOrNest*(n, limit: LONGINT; d: Doc): Doc;
-VAR r: Doc;
+  VAR r: Doc;
 BEGIN
   r := NewNode(alignOrNest); r.n := n; r.limit := limit; r.child := d;
   RETURN r
@@ -214,7 +228,7 @@ END AlignOrNest;
 
 (* d flat if it fits, else broken. *)
 PROCEDURE Group*(d: Doc): Doc;
-VAR r: Doc;
+  VAR r: Doc;
 BEGIN
   r := NewNode(group); r.child := d;
   RETURN r
@@ -224,7 +238,7 @@ END Group;
    (counted from 1). A comment of several lines keeps its shape: its later
    lines move by as many columns as its first line moved. *)
 PROCEDURE Comment*(t: OppText.Text; column: LONGINT): Doc;
-VAR d: Doc; i: LONGINT;
+  VAR d: Doc; i: LONGINT;
 BEGIN
   d := NewNode(comment); d.text := t; d.n := column;
   i := 0;
@@ -244,7 +258,7 @@ END Comment;
 (* a followed by b; either may be NIL. a is extended in place when it is a
    concatenation, so a must not be used anywhere else. *)
 PROCEDURE Cat*(a, b: Doc): Doc;
-VAR r: Doc;
+  VAR r: Doc;
 BEGIN
   IF a = NIL THEN RETURN b
   ELSIF b = NIL THEN RETURN a
@@ -290,10 +304,21 @@ BEGIN
   f.item := Cat(f.item, d)
 END Add;
 
+(* d, the leading comments of a new item, which put it on a line of its
+   own: they go before the item's mark, so that a separator after the item
+   asks whether the item itself stayed on one line. *)
+PROCEDURE AddLead*(VAR f: FillBuilder; d: Doc);
+BEGIN
+  f.mark := NewNode(mark); f.mark.n := -1;
+  f.item := NewNode(concat); f.item := Cat(f.item, d);
+  f.item := Cat(f.item, f.mark);
+  f.doc := Cat(f.doc, f.item)
+END AddLead;
+
 (* A separator: a space, or a line break if the next item does not fit on
    the line or the item before did not stay on one line. *)
 PROCEDURE Sep*(VAR f: FillBuilder);
-VAR s: Doc;
+  VAR s: Doc;
 BEGIN
   s := NewNode(fillLine); s.ref := f.mark;
   f.doc := Cat(f.doc, s); f.item := NIL
@@ -323,7 +348,7 @@ END Fill;
    that nothing follows in the chain. A group is hard if its content is by
    end; to what holds the group, it is as its content. *)
 PROCEDURE Propagate(d: Doc; VAR strict, end: BOOLEAN);
-VAR s, e: BOOLEAN;
+  VAR s, e: BOOLEAN;
 BEGIN
   strict := FALSE; end := FALSE;
   WHILE d # NIL DO
@@ -342,18 +367,20 @@ BEGIN
   END
 END Propagate;
 
-PROCEDURE Push(VAR stack: Frame; ind: LONGINT; mode: INTEGER; d: Doc; chain: BOOLEAN);
-VAR f: Frame;
+PROCEDURE Push(VAR stack: Frame; ind: LONGINT; mode: INTEGER; d: Doc;
+               chain: BOOLEAN);
+  VAR f: Frame;
 BEGIN
   IF d # NIL THEN
-    NEW(f); f.ind := ind; f.mode := mode; f.doc := d; f.chain := chain; f.below := stack;
+    NEW(f); f.ind := ind; f.mode := mode; f.doc := d; f.chain := chain;
+    f.below := stack;
     stack := f
   END
 END Push;
 
 (* The node at the top of stack, which is taken off it. *)
 PROCEDURE Pop(VAR stack: Frame; VAR ind: LONGINT; VAR mode: INTEGER): Doc;
-VAR d: Doc;
+  VAR d: Doc;
 BEGIN
   d := stack.doc; ind := stack.ind; mode := stack.mode;
   IF stack.chain & (d.next # NIL) THEN
@@ -374,7 +401,9 @@ END Pop;
    when it decides whether the item after it joins the line. rest is only
    read. *)
 PROCEDURE Fits(first: Doc; rest: Frame; rem: LONGINT; all: BOOLEAN): BOOLEAN;
-VAR local: Frame; d: Doc; ind, pending: LONGINT; mode: INTEGER; inFirst: BOOLEAN;
+  VAR
+    local: Frame; d: Doc; ind, pending: LONGINT; mode: INTEGER;
+    inFirst: BOOLEAN;
 BEGIN
   local := NIL; inFirst := TRUE; pending := 0;
   Push(local, 0, flat, first, FALSE);
@@ -388,8 +417,9 @@ BEGIN
     END;
     d := Pop(local, ind, mode);
     (* the comments before d do not end the line *)
-    IF (pending > 0) & ((d.kind IN {text, space, line, fillLine, choiceLine})
-        OR (d.kind = comment) & d.multiLine) THEN
+    IF (pending > 0)
+        & ((d.kind IN {text, space, line, fillLine, choiceLine, keptLine})
+               OR (d.kind = comment) & d.multiLine) THEN
       DEC(rem, pending); pending := 0
     END;
     CASE d.kind OF
@@ -399,11 +429,18 @@ BEGIN
         IF ~d.multiLine & ~all THEN INC(pending, d.width)
         ELSE
           DEC(rem, d.width);
-          IF d.multiLine THEN RETURN (rem >= 0) & (~inFirst OR (local = NIL)) END
+          IF d.multiLine THEN
+            RETURN (rem >= 0) & (~inFirst OR (local = NIL))
+          END
         END
     | line, fillLine: IF mode = flat THEN DEC(rem) ELSE RETURN TRUE END
     | choiceLine:
         IF (mode = flat) & (d.ref.n = 0) THEN DEC(rem)
+        ELSE RETURN ~inFirst OR (local = NIL)
+        END
+    | keptLine:
+        IF (mode = flat) & (d.ref.n = 0) THEN DEC(rem)
+        ELSIF d.ref.n = 1 THEN RETURN TRUE
         ELSE RETURN ~inFirst OR (local = NIL)
         END
     | softLine: IF mode = broken THEN RETURN TRUE END
@@ -417,6 +454,32 @@ BEGIN
     END
   END
 END Fits;
+
+(* Whether the fill d has an item that does not fit in aligned columns
+   but does in nested columns, the last item measured with rest after it. *)
+PROCEDURE NestFits(d: Doc; rest: Frame; aligned, nested: LONGINT): BOOLEAN;
+  VAR it, last: Doc; r: Frame;
+BEGIN
+  IF d.kind # concat THEN RETURN FALSE END;
+  last := NIL; it := d.child;
+  WHILE it # NIL DO
+    IF (it.kind # fillLine) & (it.kind # hardLine) & (it.kind # blankLine) THEN
+      last := it
+    END;
+    it := it.next
+  END;
+  it := d.child;
+  WHILE it # NIL DO
+    IF (it.kind # fillLine) & (it.kind # hardLine) & (it.kind # blankLine) THEN
+      IF it = last THEN r := rest ELSE r := NIL END;
+      IF ~Fits(it, r, aligned, FALSE) & Fits(it, r, nested, FALSE) THEN
+        RETURN TRUE
+      END
+    END;
+    it := it.next
+  END;
+  RETURN FALSE
+END NestFits;
 
 PROCEDURE Spaces(VAR r: Renderer; n: LONGINT);
 BEGIN
@@ -449,7 +512,7 @@ END NewLine;
 
 (* The line the next text will be on: the line breaks Flush will write. *)
 PROCEDURE NextLine(VAR r: Renderer): LONGINT;
-VAR n: LONGINT;
+  VAR n: LONGINT;
 BEGIN
   n := r.lineNo;
   IF (r.pendingBreaks > 0) & (r.out.len > 0) THEN
@@ -462,7 +525,11 @@ END NextLine;
 (* The column the next text will start at. *)
 PROCEDURE Column(VAR r: Renderer): LONGINT;
 BEGIN
-  IF r.pendingBreaks > 0 THEN RETURN r.pendingIndent ELSE RETURN r.col + r.pendingSpaces END
+  IF r.pendingBreaks > 0 THEN
+    RETURN r.pendingIndent
+  ELSE
+    RETURN r.col + r.pendingSpaces
+  END
 END Column;
 
 PROCEDURE EmitText(VAR r: Renderer; t: OppText.Text; width: LONGINT);
@@ -475,7 +542,7 @@ END EmitText;
    columns as the first line moved from where it was in the source, with
    the white space at the end of each line dropped. *)
 PROCEDURE EmitComment(VAR r: Renderer; d: Doc);
-VAR t: OppText.Text; i, j, k, delta, lead: LONGINT;
+  VAR t: OppText.Text; i, j, k, delta, lead: LONGINT;
 BEGIN
   Flush(r);
   t := d.text;
@@ -487,7 +554,11 @@ BEGIN
     lead := 0;
     IF i > 0 THEN
       WHILE (t[i] = " ") OR (t[i] = 9X) DO
-        IF t[i] = 9X THEN lead := (lead DIV tabWidth + 1) * tabWidth ELSE INC(lead) END;
+        IF t[i] = 9X THEN
+          lead := (lead DIV tabWidth + 1) * tabWidth
+        ELSE
+          INC(lead)
+        END;
         INC(i)
       END
     END;
@@ -516,11 +587,13 @@ END EmitComment;
 
 (* d laid out within width columns, ending with one line break. *)
 PROCEDURE Render*(d: Doc; width: LONGINT): OppText.Buffer;
-VAR
-  r: Renderer; stack, rest: Frame; x, item: Doc; ind, c: LONGINT; mode: INTEGER;
-  strict, end: BOOLEAN;
+  VAR
+    r: Renderer; stack, rest: Frame; x, item, nothing: Doc; ind, c: LONGINT;
+    mode: INTEGER;
+    strict, end: BOOLEAN;
 BEGIN
   Propagate(d, strict, end);
+  nothing := NewNode(text); nothing.text := OppText.New(""); nothing.width := 0;
   r.out := OppText.NewBuffer(); r.width := width; r.col := 0; r.lineNo := 0;
   r.pendingBreaks := 0; r.pendingIndent := 0; r.pendingSpaces := 0;
   r.lastLineBlank := FALSE;
@@ -534,7 +607,20 @@ BEGIN
     | comment: EmitComment(r, x)
     | line: IF mode = flat THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
     | choiceLine:
-        IF (mode = flat) & (x.ref.n = 0) THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
+        IF (mode = flat) & (x.ref.n = 0) THEN
+          INC(r.pendingSpaces)
+        ELSE
+          NewLine(r, ind, 1)
+        END
+    | keptLine:
+        IF x.ref.n = 0 THEN
+          IF mode = flat THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
+        ELSIF (r.pendingBreaks = 0)
+            & Fits(nothing, stack, width - Column(r) - 1, FALSE) THEN
+          INC(r.pendingSpaces)
+        ELSE
+          NewLine(r, ind, 1)
+        END
     | softLine: IF mode = broken THEN NewLine(r, ind, 1) END
     | hardLine, trailBreak: NewLine(r, ind, 1)
     | blankLine: NewLine(r, ind, 2)
@@ -553,7 +639,8 @@ BEGIN
           ELSE
             rest := stack.below
           END;
-          IF (r.pendingBreaks = 0) & Fits(item, rest, width - Column(r) - 1, TRUE) THEN
+          IF (r.pendingBreaks = 0)
+              & Fits(item, rest, width - Column(r) - 1, TRUE) THEN
             INC(r.pendingSpaces)
           ELSE
             NewLine(r, ind, 1)
@@ -572,17 +659,24 @@ BEGIN
           ELSE
             rest := NIL
           END;
-          IF ~Fits(item, rest, width - Column(r), FALSE) THEN NewLine(r, ind, 1) END
+          IF ~Fits(item, rest, width - Column(r), FALSE) THEN
+            NewLine(r, ind, 1)
+          END
         END
     | nest: Push(stack, ind + x.n, mode, x.child, TRUE)
     | align: Push(stack, Column(r), mode, x.child, TRUE)
     | alignOrNest:
         c := Column(r);
-        IF c <= x.limit THEN Push(stack, c, mode, x.child, TRUE)
+        IF (c <= x.limit)
+            & ((mode = flat) OR (c <= ind + x.n)
+                   OR ~NestFits(x.child, stack, width - c,
+                                width - ind - x.n)) THEN
+          Push(stack, c, mode, x.child, TRUE)
         ELSE Push(stack, ind + x.n, mode, x.child, TRUE)
         END
     | group:
-        IF (mode = flat) OR ~x.hard & Fits(x.child, stack, width - Column(r), FALSE) THEN
+        IF (mode = flat)
+            OR ~x.hard & Fits(x.child, stack, width - Column(r), FALSE) THEN
           Push(stack, ind, flat, x.child, TRUE)
         ELSE
           Push(stack, ind, broken, x.child, TRUE)

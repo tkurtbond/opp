@@ -43,6 +43,7 @@ it writes each formatted file to standard output in turn, unless
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
+| `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
 | `-h`, `--help` | show the usage and exit 0 |
 
 `--one-per-line`, `--pack` and `--keep-lines` choose the statement mode;
@@ -127,7 +128,8 @@ what follows a group [3]; "References" below has the sources:
 | `FillLine` | a space | a space if the next item fits, else a line break |
 | `Nest n d` | `d` indented `n` more after its line breaks | |
 | `Align d` | `d` indented to the current column | |
-| `AlignOrNest n d` | `Align d`, or `Nest n d` when the column is past a limit | |
+| `AlignOrNest n d` | `Align d`, or `Nest n d` when the column is past a limit, or when an item of the fill `d` fits only nested | |
+| `KeptLine c` | as `ChoiceLine c` while `c` is soft | once `c` is hard, a line break only if what follows does not fit |
 | `Group d` | `d` flat if it fits, else broken | |
 | `Concat` | its children in order | |
 | `Comment` | a comment, its later lines re-indented | |
@@ -180,15 +182,36 @@ A token's `blankBefore` is honored where an item starts: a statement, a
 declaration, a field list, a `CASE` arm, a procedure, an import list. Blank
 lines inside an expression are dropped.
 
-### Opp: the program
+### Opp and OppCheck: the program and the safety check
 
-Parses the command line with `ArgParser`, reads each file (or standard
-input) into memory, formats it, runs the **safety check**, and writes the
-result. The safety check rescans the output and the input and compares
-them token by token: kinds and texts, the comments' texts with each line's
-leading white space removed, and the text after the closing period. A
-mismatch is reported as an internal error, with the first differing
-position, and nothing is written.
+`Opp` parses the command line with `ArgParser`, reads each file (or
+standard input) into memory, formats it, runs the **safety check**, and
+writes the result: to standard output, back to the file with
+`--in-place`, or with `--check` only the names of the files that would
+change. `--in-place` writes only a file that changed, and writes over it,
+so that it keeps its permissions, owner and hard links (neither compiler's
+library can set a new file's permissions): once the file is open for
+writing, its old text is copied to `NAME.opp-backup`, which is deleted
+once the file is written and is left, and named, if writing it fails. A
+file opp cannot open, or whose backup it cannot write, is left as it was.
+
+The safety check is `OppCheck`. It scans the input and the output up to
+the module's closing period, each as one sequence of tokens and comments
+in order, and the output's must be the input's, except for semicolons and
+bars the input has and the output leaves out (empty statements, field
+lists and `CASE` arms). Tokens are compared by kind and text; comments by
+text, with the white space at the start and end of each line removed. The
+text after the period must be the same, or white space in both. Then the
+output must parse. A comment moved past a token, or lost, is a difference.
+A failure is reported as an internal error, with the position in the
+output and what differs, and nothing is written for that file.
+
+opp reads and writes files with `Platform`, not `Files`, which both
+compilers' `Platform` modules make possible with the same procedures:
+`Files.Register` replaces a file with a new one (losing its permissions),
+and voc's `Files` renames a file it still has open, as one read for
+formatting would be, to a temporary name that is deleted only if the
+collector ever finalizes it.
 
 ## Layout rules
 
@@ -307,7 +330,12 @@ source, and shares the line of the statement before it where the author
 wrote them on one line; a run that no longer fits is filled onto as many
 lines as it needs. A structured statement the author wrote on one line
 stays on one line if it fits, and is broken as shown above if it does not;
-one the author broke stays broken. Declarations follow the same rule. This
+one the author broke stays broken, but a body the author wrote on its
+keyword's line (`IF a THEN x := 1` then `ELSE x := 2` then `END`) stays
+there while it fits; so does a `CASE` arm's, and one the author put on the
+next line stays there. Declarations follow the same rule, and comments
+before a declaration or statement do not stop the ones after it sharing
+its line. This
 is idempotent: what opp splits, it never joins again. Whether two
 statements were on one line is decided from their tokens' line numbers in
 the source.
@@ -318,7 +346,8 @@ at one precedence level fills its lines, breaking *before* an operator and
 continuing at `2s` from the statement's indentation. A parenthesized
 expression breaks aligned after its `(`. Argument lists, index lists, sets
 and literals fill their lines aligned after the opening bracket, or nested
-`2s` when that column is too far right (past two thirds of the width).
+`2s` when that column is too far right (past two thirds of the width) or
+when an item would fit only nested.
 
 **Kept as written:** identifiers, numbers, strings and their quote
 characters, comments' text, the export marks, a trailing `;` before `END`
@@ -351,7 +380,14 @@ empty `CASE` arms are dropped (their comments are kept).
 - **`PROCEDURE ^ Name`, poc's spelling** (2026-10-12, with the user): the
   space makes the `^`, and so the forward declaration, more obvious.
 - **The safety check always runs**: it is cheap next to parsing, and
-  `--in-place` must never damage a file.
+  `--in-place` must never damage a file. It parses the output again too, so
+  that leaving out a semicolon or bar can never go unnoticed.
+- **opp's own source is formatted `-k --no-module-indent`** (`make
+  format`; the fixture `opp-own-source` checks it): it keeps the source's
+  grouping, and its declarations at column 1 as in Ropes and oberon-tools.
+- **`--damage N`** is in the usage, as ArgParser lists every option: it
+  exists only so the fixtures can show that the safety check catches a
+  changed token, comment or trailing text.
 
 ## Open questions
 
@@ -464,7 +500,9 @@ Done:
   voc rejects too). At width 80 the lines still too long are long strings,
   comments, and code followed by a trailing comment.
 
-### Phase 4: the program and the safety check
+### Phase 4: the program and the safety check (done 2026-10-12)
+
+Planned:
 
 - `Opp.Mod`: options, standard input, several files, `--in-place`,
   `--check`, the exit statuses.
@@ -477,6 +515,36 @@ Done:
   and no line is longer than the width except where it cannot be broken
   (one token, a string or a comment that is too long); report those lines.
 - Format opp's own source with opp and commit the result.
+
+Done:
+
+- `OppCheck.Mod` and the program as described above. `--in-place` and
+  `--check` together, `--tokens` with either, and `--in-place` on standard
+  input are command line mistakes (exit 2); with several files the worst
+  status wins and every file is still tried.
+- Fixtures: `opp-damage-*` (each kind of damage, and with `--check`),
+  `opp-check*`, `opp-several-files`, `opp-stdin-dash`, the command line
+  mistakes, `fmt-keep*`, and `opp-own-source`. `tests/in-place.sh`, run by
+  `make test` and `test-poc`, checks `--in-place` on copies: the file
+  formatted, a formatted file not rewritten (its time kept), files with a
+  syntax error or a failed check untouched, no temporary file left,
+  permissions and hard links kept, a read-only file or one whose backup
+  cannot be written untouched. Each new kind of check was shown to fail by
+  planting its bug.
+- `make corpus` (`tools/corpus.py`, `tools/corpus-known-errors`): the
+  files git tracks in poc's both branches, voc, ArgParser, Ropes,
+  oberon-tools, polibfyaml, pofltk and oberon-experiments, 643 in all, in
+  17 seconds. All pass in all nine configurations; an independent token
+  comparison in Python agrees with the safety check. Lines still too long
+  that hold no string or comment: none at widths 80 and 120, about 130 at
+  60 (long type declarations and designators, and assignments, which opp
+  does not break after `:=`).
+- Layout changes the corpus prompted: `AlignOrNest` nests a list whose
+  items would overflow aligned (headings of external procedures with long
+  names); comments before an item no longer stop the next item sharing its
+  line; `--keep-lines` keeps bodies on their keyword's line (`KeptLine`)
+  and `CASE` bodies on their own line where the source has them.
+- opp's own source formatted (`make format`).
 
 ### Phase 5: real-code polish
 

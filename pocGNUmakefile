@@ -43,7 +43,7 @@ BUILDDIR = poc-build
 PROGRAMS = Opp OppDocTest
 # opp's own modules, which poc compiles from source with the programs
 # that import them.
-MODULES = OppText OppScanner OppDoc OppFormat
+MODULES = OppText OppScanner OppDoc OppFormat OppCheck
 BINDIR ?= $(HOME)/local/bin
 
 .PHONY: all clean test-poc test-verbose install uninstall
@@ -68,6 +68,7 @@ $(BUILDDIR)/%: $(BUILDDIR)/%.Mod $(MODULES:%=$(BUILDDIR)/%.Mod) $(wildcard $(ARG
 # many passed and failed; test-verbose announces each test as it goes.
 test-poc: all
 	BINDIR=$(BUILDDIR) ./tests/run-tests.sh
+	BINDIR=$(BUILDDIR) ./tests/in-place.sh
 
 test-verbose: all
 	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v

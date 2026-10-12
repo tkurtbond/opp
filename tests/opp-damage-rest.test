@@ -1,0 +1,9 @@
+# The safety check: changed text after the module's end is an internal
+# error (exit 3), and nothing is written.
+program Opp
+arg --damage
+arg 3
+arg tests/data/fmt-comments.Mod
+status 3
+output
+opp: internal error: tests/data/fmt-comments.Mod: the formatted text, at 37:13: the text after the module's end differs; nothing written

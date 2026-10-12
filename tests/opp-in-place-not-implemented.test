@@ -1,8 +1,0 @@
-# Phase 3: --in-place is not implemented yet.
-# Remove this fixture when Phase 4 implements it.
-program Opp
-arg --in-place
-arg tests/data/fmt-statements.Mod
-status 1
-output
-opp: --in-place and --check are not implemented yet (PLAN.md, Phase 4)

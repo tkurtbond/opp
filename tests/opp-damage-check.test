@@ -1,0 +1,10 @@
+# The safety check runs with --check too: nothing is reported as
+# formatted or not.
+program Opp
+arg -c
+arg --damage
+arg 1
+arg tests/data/formatted.Mod
+status 3
+output
+opp: internal error: tests/data/formatted.Mod: the formatted text, at 1:8: the output has the token Xtatements where the input has the token Statements; nothing written

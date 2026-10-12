@@ -1,0 +1,8 @@
+# --in-place and --check together are a command line mistake (exit 2).
+program Opp
+arg --in-place
+arg -c
+arg tests/data/formatted.Mod
+status 2
+output
+opp: --in-place and --check cannot be used together

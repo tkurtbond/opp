@@ -35,7 +35,7 @@ SPILL = tools/voc-heap-gc-spill.o
 SPILL_LIBS = $(if $(filter Linux,$(shell uname -s)),-ldl)
 export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) $(LDFLAGS)
 
-.PHONY: all clean test test-verbose install uninstall
+.PHONY: corpus format all clean test test-verbose install uninstall
 
 all: $(PROGRAMS)
 
@@ -47,9 +47,11 @@ Opp: ArgParser.o
 ArgParser.o: Err.o
 
 # opp's own modules, each built before the modules that import it.
-Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o
+Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o OppCheck.o
 
 OppFormat.o: OppText.o OppScanner.o OppDoc.o
+
+OppCheck.o: OppText.o OppScanner.o
 
 OppScanner.o: OppText.o
 
@@ -74,10 +76,34 @@ $(SPILL): tools/voc-heap-gc-spill.c
 # many passed and failed.  See tests/run-tests.sh for the fixture format.
 test: all
 	./tests/run-tests.sh
+	./tests/in-place.sh
 
 # Like test, but announces each test and its outcome as it goes.
 test-verbose: all
 	./tests/run-tests.sh -v
+
+# The bodies of real Oberon that make corpus formats: poc (both
+# branches), voc, and the other Oberon repos.  A directory that does not
+# exist is skipped.
+OBERON_REPOS ?= $(HOME)/Repos/Oberon
+VOC_SOURCE ?= /usr/local/sw/src/lang/Oberon/vishap/compiler
+CORPUS_DIRS ?= $(OBERON_REPOS)/Peaseblossom-main $(OBERON_REPOS)/Peaseblossom \
+  $(VOC_SOURCE) $(OBERON_REPOS)/ArgParser $(OBERON_REPOS)/Ropes \
+  $(OBERON_REPOS)/oberon-tools $(OBERON_REPOS)/polibfyaml \
+  $(OBERON_REPOS)/pofltk $(OBERON_REPOS)/oberon-experiments
+
+# Format every module in CORPUS_DIRS in all three modes at widths 60, 80
+# and 120, checking that opp succeeds and is idempotent, and reporting the
+# lines still too long.  See tools/corpus.py.
+corpus: Opp
+	python3 -I tools/corpus.py ./Opp tools/corpus-known-errors $(CORPUS_DIRS)
+
+# Format opp's own source with opp, in the style tests/opp-own-source.test
+# checks.
+OPP_SOURCES = Opp.Mod OppCheck.Mod OppDoc.Mod OppDocTest.Mod OppFormat.Mod \
+  OppScanner.Mod OppText.Mod
+format: Opp
+	./Opp --in-place -k --no-module-indent $(OPP_SOURCES)
 
 install: Opp
 	install -d $(BINDIR)

@@ -43,13 +43,13 @@ TYPE
   Parser = POINTER TO ParserDesc;
   ParserDesc = RECORD
     s: S.Scanner;
-    tok: S.Token;          (* the current token *)
-    last: S.Token;         (* the token before it *)
-    eofTok: S.Token;       (* the current token after an error *)
+    tok: S.Token; (* the current token *)
+    last: S.Token; (* the token before it *)
+    eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
-    ind: LONGINT;          (* the indentation step *)
-    cont: LONGINT;         (* the indentation of a continued line *)
-    limit: LONGINT;        (* the last column to align a list to *)
+    ind: LONGINT; (* the indentation step *)
+    cont: LONGINT; (* the indentation of a continued line *)
+    limit: LONGINT; (* the last column to align a list to *)
     error: BOOLEAN;
     errorLine, errorColumn: LONGINT;
     errorMessage: ARRAY 120 OF CHAR
@@ -57,8 +57,9 @@ TYPE
 
   (* a statement, declaration or field list, as a sequence assembles it *)
   Item = RECORD
+    lead: D.Doc; (* its leading comments and blank line, or NIL *)
     doc: D.Doc;
-    simple: BOOLEAN;        (* a statement that is not structured *)
+    simple: BOOLEAN; (* a statement that is not structured *)
     startLine, endLine: LONGINT
   END;
 
@@ -80,18 +81,20 @@ BEGIN
 END Error;
 
 PROCEDURE Append(VAR dst: ARRAY OF CHAR; src: ARRAY OF CHAR);
-VAR i, j: LONGINT;
+  VAR i, j: LONGINT;
 BEGIN
   i := 0; WHILE dst[i] # 0X DO INC(i) END;
   j := 0;
-  WHILE (src[j] # 0X) & (i < LEN(dst) - 1) DO dst[i] := src[j]; INC(i); INC(j) END;
+  WHILE (src[j] # 0X) & (i < LEN(dst) - 1) DO
+    dst[i] := src[j]; INC(i); INC(j)
+  END;
   dst[i] := 0X
 END Append;
 
 (* How a token of kind is named in a message: "an identifier", "MODULE",
    "':='". *)
 PROCEDURE Describe(kind: INTEGER; VAR what: ARRAY OF CHAR);
-VAR name: ARRAY 40 OF CHAR;
+  VAR name: ARRAY 40 OF CHAR;
 BEGIN
   S.KindName(kind, name);
   IF (kind = S.ident) OR (kind = S.invalid) THEN COPY("an ", what)
@@ -106,7 +109,7 @@ END Describe;
 
 (* "expected what, found ..." at the current token *)
 PROCEDURE Expected(p: Parser; what: ARRAY OF CHAR);
-VAR msg: ARRAY 120 OF CHAR; found: ARRAY 40 OF CHAR;
+  VAR msg: ARRAY 120 OF CHAR; found: ARRAY 40 OF CHAR;
 BEGIN
   msg := "expected "; Append(msg, what);
   Describe(p.tok.kind, found);
@@ -115,7 +118,7 @@ BEGIN
 END Expected;
 
 PROCEDURE ExpectedKind(p: Parser; kind: INTEGER);
-VAR what: ARRAY 40 OF CHAR;
+  VAR what: ARRAY 40 OF CHAR;
 BEGIN
   Describe(kind, what); Expected(p, what)
 END ExpectedKind;
@@ -128,7 +131,8 @@ BEGIN
   ELSE
     p.tok := S.Next(p.s);
     IF p.s.error THEN
-      p.error := TRUE; p.errorLine := p.s.errorLine; p.errorColumn := p.s.errorColumn;
+      p.error := TRUE; p.errorLine := p.s.errorLine;
+      p.errorColumn := p.s.errorColumn;
       COPY(p.s.errorMessage, p.errorMessage);
       p.tok := p.eofTok
     END
@@ -137,11 +141,15 @@ END Advance;
 
 (* The comments that lead a token, each on a line of its own. *)
 PROCEDURE LeadDoc(c: S.Comment): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := NIL;
   WHILE c # NIL DO
-    IF c.blankBefore THEN d := D.Cat(d, D.BlankLine()) ELSE d := D.Cat(d, D.HardLine()) END;
+    IF c.blankBefore THEN
+      d := D.Cat(d, D.BlankLine())
+    ELSE
+      d := D.Cat(d, D.HardLine())
+    END;
     d := D.Cat(d, D.Comment(c.text, c.column));
     c := c.next
   END;
@@ -152,7 +160,7 @@ END LeadDoc;
    it starts a statement, declaration or other item, where a blank line
    before it is kept. *)
 PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
-VAR t: S.Token; d: D.Doc; c: S.Comment;
+  VAR t: S.Token; d: D.Doc; c: S.Comment;
 BEGIN
   t := p.tok;
   IF t = p.eofTok THEN RETURN D.Empty() END;
@@ -182,7 +190,7 @@ END Tok;
    taken from it: what goes before an item that starts with it, outside
    the item's groups, which could not be flat with a line break inside. *)
 PROCEDURE ItemLead(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := LeadDoc(p.tok.lead);
   IF p.tok.blankBefore THEN d := D.Cat(d, D.BlankLine())
@@ -209,7 +217,7 @@ END ExpectItem;
 (* Leaves the current token out, handing its comments, and a blank line
    before it, to the next token. *)
 PROCEDURE Drop(p: Parser);
-VAR t: S.Token; c, tail: S.Comment;
+  VAR t: S.Token; c, tail: S.Comment;
 BEGIN
   t := p.tok; Advance(p);
   IF p.tok # p.eofTok THEN
@@ -229,7 +237,7 @@ END Drop;
 (* The comments leading the current token, taken from it, so they can go
    at the end of the body it closes, at the body's indentation. *)
 PROCEDURE TakeLead(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := LeadDoc(p.tok.lead); p.tok.lead := NIL;
   RETURN d
@@ -237,7 +245,7 @@ END TakeLead;
 
 (* The kind of the token after the current one. *)
 PROCEDURE PeekKind(p: Parser): INTEGER;
-VAR t: S.Token;
+  VAR t: S.Token;
 BEGIN
   IF p.error THEN RETURN S.eof END;
   t := S.Peek(p.s);
@@ -257,9 +265,11 @@ BEGIN
 END InitSeq;
 
 (* Appends it to q: after a line break, or, as the mode allows, on the
-   line of the item before. *)
+   line of the item before. An item with leading comments or a blank line
+   before it starts a line; they come before the line the fill measures it
+   from (D.AddLead). *)
 PROCEDURE AddItem(p: Parser; VAR q: Seq; VAR it: Item; packable: BOOLEAN);
-VAR share: BOOLEAN;
+  VAR share: BOOLEAN;
 BEGIN
   IF q.any THEN
     CASE p.mode OF
@@ -267,8 +277,9 @@ BEGIN
     | pack: share := packable & q.prev.simple & it.simple
     | keepLines: share := it.startLine = q.prev.endLine
     END;
-    IF share THEN D.Sep(q.fill) ELSE D.Break(q.fill) END
+    IF share & (it.lead = NIL) THEN D.Sep(q.fill) ELSE D.Break(q.fill) END
   END;
+  IF it.lead # NIL THEN D.AddLead(q.fill, it.lead) END;
   D.Add(q.fill, it.doc);
   q.prev := it; q.any := TRUE
 END AddItem;
@@ -290,13 +301,6 @@ BEGIN
   END
 END Lines;
 
-(* A body: Nest(ind, line body), or nothing when the body is empty. *)
-PROCEDURE Body(p: Parser; c, body: D.Doc): D.Doc;
-BEGIN
-  IF body = NIL THEN RETURN NIL END;
-  RETURN D.Nest(p.ind, D.Cat(D.ChoiceLine(c), body))
-END Body;
-
 (* d := d followed by x. An expression makes at most one parsing call,
    because the order in which an expression's calls are made is not
    defined, and the C compiler voc uses makes them in any order. *)
@@ -313,11 +317,27 @@ PROCEDURE ^ DeclSeq(p: Parser; VAR procs: BOOLEAN): D.Doc;
 (* A statement sequence, then the comments leading the keyword that closes
    it, at its indentation. *)
 PROCEDURE BodySeq(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := StatementSeq(p);
   RETURN D.Cat(d, TakeLead(p))
 END BodySeq;
+
+(* The body at the current token: Nest(ind, line body), the line the
+   choice c's, or nothing when the body is empty. With --keep-lines, a body
+   the source has on its keyword's line stays there while it fits when the
+   source breaks the statement (c is hard). *)
+PROCEDURE Body(p: Parser; c: D.Doc): D.Doc;
+  VAR body, br: D.Doc; same: BOOLEAN;
+BEGIN
+  same := p.tok.line = p.last.endLine;
+  body := BodySeq(p);
+  IF body = NIL THEN RETURN NIL END;
+  IF (p.mode = keepLines) & same THEN br := D.KeptLine(c)
+  ELSE br := D.ChoiceLine(c)
+  END;
+  RETURN D.Nest(p.ind, D.Cat(br, body))
+END Body;
 
 (* ---- Lists ---- *)
 
@@ -325,7 +345,7 @@ PROCEDURE ^ Element(p: Parser; kind: INTEGER): D.Doc;
 
 (* elem {"," elem}, filling lines, each comma after its element. *)
 PROCEDURE ListFill(p: Parser; kind: INTEGER): D.Doc;
-VAR f: D.FillBuilder;
+  VAR f: D.FillBuilder;
 BEGIN
   D.InitFill(f);
   D.Add(f, Element(p, kind));
@@ -340,12 +360,13 @@ END ListFill;
    too far right: (a, b), [i, j], {x, y}. open is inside the nest, so a
    comment that ends its line continues the list indented. *)
 PROCEDURE Bracketed(p: Parser; close, kind: INTEGER): D.Doc;
-VAR d, list: D.Doc;
+  VAR d, list: D.Doc;
 BEGIN
   d := Tok(p);
   IF ~Is(p, close) THEN
     list := ListFill(p, kind);
-    d := D.Nest(p.cont, D.Cat3(d, D.SoftBreak(list), D.AlignOrNest(p.cont, p.limit, list)))
+    d := D.Nest(p.cont,
+            D.Cat3(d, D.SoftBreak(list), D.AlignOrNest(p.cont, p.limit, list)))
   END;
   RETURN D.Cat(d, Expect(p, close))
 END Bracketed;
@@ -353,7 +374,7 @@ END Bracketed;
 (* ---- Expressions ---- *)
 
 PROCEDURE Qualident(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := Expect(p, S.ident);
   IF Is(p, S.period) THEN Put(d, Tok(p)); Put(d, Expect(p, S.ident)) END;
@@ -363,7 +384,7 @@ END Qualident;
 (* ident {"." ident | "[" ExprList "]" | "^" | "(" [ExprList] ")"}: a call's
    arguments and a type guard alike. *)
 PROCEDURE Designator(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := Expect(p, S.ident);
   LOOP
@@ -385,7 +406,7 @@ BEGIN
 END Braces;
 
 PROCEDURE Factor(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   CASE p.tok.kind OF
     S.ident:
@@ -403,8 +424,8 @@ END Factor;
 
 PROCEDURE IsMulOp(kind: INTEGER): BOOLEAN;
 BEGIN
-  RETURN (kind = S.times) OR (kind = S.slash) OR (kind = S.div) OR (kind = S.mod)
-    OR (kind = S.ampersand)
+  RETURN (kind = S.times) OR (kind = S.slash) OR (kind = S.div)
+      OR (kind = S.mod) OR (kind = S.ampersand)
 END IsMulOp;
 
 PROCEDURE IsAddOp(kind: INTEGER): BOOLEAN;
@@ -419,7 +440,7 @@ END IsRelation;
 
 (* Factor {MulOp Factor}: a fill, breaking before an operator. *)
 PROCEDURE Term(p: Parser): D.Doc;
-VAR f: D.FillBuilder; first: D.Doc;
+  VAR f: D.FillBuilder; first: D.Doc;
 BEGIN
   first := Factor(p);
   IF ~IsMulOp(p.tok.kind) THEN RETURN first END;
@@ -432,7 +453,7 @@ END Term;
 
 (* ["+" | "-"] Term {AddOp Term} *)
 PROCEDURE SimpleExpr(p: Parser): D.Doc;
-VAR f: D.FillBuilder; first: D.Doc;
+  VAR f: D.FillBuilder; first: D.Doc;
 BEGIN
   first := NIL;
   IF Is(p, S.plus) OR Is(p, S.minus) THEN first := Tok(p) END;
@@ -447,11 +468,12 @@ END SimpleExpr;
 
 (* SimpleExpr [Relation SimpleExpr] *)
 PROCEDURE Expr(p: Parser): D.Doc;
-VAR d, rel: D.Doc;
+  VAR d, rel: D.Doc;
 BEGIN
   d := SimpleExpr(p);
   IF IsRelation(p.tok.kind) THEN
-    rel := D.Cat(D.Line(), Tok(p)); Put(rel, D.Space()); Put(rel, SimpleExpr(p));
+    rel := D.Cat(D.Line(), Tok(p)); Put(rel, D.Space());
+    Put(rel, SimpleExpr(p));
     d := D.Group(D.Cat(d, D.Nest(p.cont, rel)))
   END;
   RETURN d
@@ -461,13 +483,14 @@ END Expr;
    "[" labels "]" ":" expression, ident ":=" expression, or expression
    [".." expression]; a CASE label, expression [".." expression]. *)
 PROCEDURE Element(p: Parser; kind: INTEGER): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   IF kind = exprs THEN RETURN Expr(p) END;
   d := NIL;
   IF kind = braceElements THEN
     IF Is(p, S.lbrak) THEN
-      d := Bracketed(p, S.rbrak, caseLabels); Put(d, Expect(p, S.colon)); Put(d, D.Space())
+      d := Bracketed(p, S.rbrak, caseLabels); Put(d, Expect(p, S.colon));
+      Put(d, D.Space())
     ELSIF Is(p, S.ident) & (PeekKind(p) = S.becomes) THEN
       d := Tok(p); Put(d, D.Space()); Put(d, Tok(p)); Put(d, D.Space())
     END
@@ -482,7 +505,7 @@ END Element;
 (* voc's system flag, "[" ConstExpr "]", after ARRAY, RECORD, POINTER or
    PROCEDURE *)
 PROCEDURE SysFlag(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   IF Is(p, S.lbrak) THEN
     d := D.Cat(D.Space(), Tok(p)); Put(d, Expr(p)); Put(d, Expect(p, S.rbrak));
@@ -493,7 +516,7 @@ END SysFlag;
 
 (* ident ["*" | "-"] *)
 PROCEDURE IdentDef(p: Parser; item: BOOLEAN): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   IF ~Is(p, S.ident) THEN ExpectedKind(p, S.ident); RETURN D.Empty() END;
   d := TokItem(p, item);
@@ -503,7 +526,7 @@ END IdentDef;
 
 (* IdentDef {"," IdentDef}, filling lines *)
 PROCEDURE IdentList(p: Parser; item: BOOLEAN): D.Doc;
-VAR f: D.FillBuilder;
+  VAR f: D.FillBuilder;
 BEGIN
   D.InitFill(f);
   D.Add(f, IdentDef(p, item));
@@ -515,7 +538,7 @@ END IdentList;
 
 (* [VAR] ident ["-" | "*"] {"," ...} ":" Type *)
 PROCEDURE FPSection(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := NIL;
   IF Is(p, S.var) THEN d := D.Cat(Tok(p), D.Space()) END;
@@ -527,7 +550,7 @@ END FPSection;
 (* "(" [FPSection {";" FPSection}] ")" [":" Qualident], the sections
    filling lines aligned after "(" *)
 PROCEDURE FormalPars(p: Parser): D.Doc;
-VAR d: D.Doc; f: D.FillBuilder;
+  VAR d: D.Doc; f: D.FillBuilder;
 BEGIN
   d := Tok(p);
   IF ~Is(p, S.rparen) THEN
@@ -536,16 +559,20 @@ BEGIN
     WHILE Is(p, S.semicolon) DO
       D.Add(f, Tok(p)); D.Sep(f); D.Add(f, FPSection(p))
     END;
-    d := D.Nest(p.cont, D.Cat3(d, D.SoftBreak(D.Fill(f)), D.AlignOrNest(p.cont, p.limit, D.Fill(f))))
+    d := D.Nest(p.cont,
+                D.Cat3(d, D.SoftBreak(D.Fill(f)),
+                       D.AlignOrNest(p.cont, p.limit, D.Fill(f))))
   END;
   d := D.Cat(d, Expect(p, S.rparen));
-  IF Is(p, S.colon) THEN Put(d, Tok(p)); Put(d, D.Space()); Put(d, Qualident(p)) END;
+  IF Is(p, S.colon) THEN
+    Put(d, Tok(p)); Put(d, D.Space()); Put(d, Qualident(p))
+  END;
   RETURN d
 END FormalPars;
 
 (* [IdentList ":" Type [":=" Expr]] *)
 PROCEDURE FieldList(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := IdentList(p, TRUE);
   Put(d, Expect(p, S.colon)); Put(d, D.Space()); Put(d, Type(p));
@@ -559,11 +586,12 @@ END FieldList;
    field list to a line, nested from the line the record starts on. An
    empty field list's semicolon is dropped, but one before END is kept. *)
 PROCEDURE RecordType(p: Parser): D.Doc;
-VAR d, fields, lead: D.Doc; f: D.FillBuilder; any: BOOLEAN;
+  VAR d, fields, lead: D.Doc; f: D.FillBuilder; any: BOOLEAN;
 BEGIN
   d := Tok(p); Put(d, SysFlag(p));
   IF Is(p, S.lparen) THEN
-    Put(d, D.Space()); Put(d, Tok(p)); Put(d, Qualident(p)); Put(d, Expect(p, S.rparen))
+    Put(d, D.Space()); Put(d, Tok(p)); Put(d, Qualident(p));
+    Put(d, Expect(p, S.rparen))
   END;
   D.InitFill(f); any := FALSE;
   LOOP
@@ -591,7 +619,7 @@ BEGIN
 END RecordType;
 
 PROCEDURE Type(p: Parser): D.Doc;
-VAR d: D.Doc; f: D.FillBuilder;
+  VAR d: D.Doc; f: D.FillBuilder;
 BEGIN
   CASE p.tok.kind OF
     S.ident: d := Qualident(p)
@@ -599,7 +627,9 @@ BEGIN
       d := Tok(p); Put(d, SysFlag(p));
       IF ~Is(p, S.of) THEN
         D.InitFill(f); D.Add(f, Expr(p));
-        WHILE Is(p, S.comma) DO D.Add(f, Tok(p)); D.Sep(f); D.Add(f, Expr(p)) END;
+        WHILE Is(p, S.comma) DO
+          D.Add(f, Tok(p)); D.Sep(f); D.Add(f, Expr(p))
+        END;
         d := D.Cat3(d, D.Space(), D.Fill(f))
       END;
       d := D.Cat3(d, D.Space(), Expect(p, S.of));
@@ -622,20 +652,32 @@ END Type;
 
 (* CaseLabels {"," CaseLabels} ":" StatementSeq, the body on the labels'
    line when it fits, else nested below them; NIL for an empty arm. *)
+(* The line break before the body of a CASE arm or its ELSE, at the
+   current token: one that a body that fits does not take, unless with
+   --keep-lines the source has the body on a line after the label's. *)
+PROCEDURE BodyBreak(p: Parser): D.Doc;
+BEGIN
+  IF (p.mode = keepLines) & (p.tok.line # p.last.endLine) THEN
+    RETURN D.HardLine()
+  END;
+  RETURN D.Line()
+END BodyBreak;
+
 PROCEDURE CaseArm(p: Parser): D.Doc;
-VAR d, body: D.Doc;
+  VAR d, body, br: D.Doc;
 BEGIN
   IF Is(p, S.bar) OR Is(p, S.else) OR Is(p, S.end) THEN RETURN NIL END;
   d := ListFill(p, caseLabels); Put(d, Expect(p, S.colon));
+  br := BodyBreak(p);
   body := BodySeq(p);
-  IF body # NIL THEN d := D.Group(D.Cat(d, D.Nest(p.ind, D.Cat(D.Line(), body)))) END;
+  IF body # NIL THEN d := D.Group(D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))) END;
   RETURN d
 END CaseArm;
 
 (* The padding after a bar, so what follows it lines up with the first
    arm, nested ind after the bar. *)
 PROCEDURE BarPad(p: Parser): D.Doc;
-VAR d: D.Doc; i: LONGINT;
+  VAR d: D.Doc; i: LONGINT;
 BEGIN
   d := D.Space();
   FOR i := 3 TO p.ind DO d := D.Cat(d, D.Space()) END;
@@ -644,7 +686,7 @@ END BarPad;
 
 (* CASE Expr OF arm {"|" arm} [ELSE StatementSeq] END; always broken *)
 PROCEDURE CaseStatement(p: Parser): D.Doc;
-VAR d, arm, arms, body: D.Doc; bar: D.Doc; k: INTEGER;
+  VAR d, arm, arms, body, br: D.Doc; bar: D.Doc; k: INTEGER;
 BEGIN
   d := Tok(p);
   d := D.Cat3(d, D.Space(), Expr(p));
@@ -656,18 +698,23 @@ BEGIN
     k := PeekKind(p);
     IF (arms = NIL) OR (k = S.bar) OR (k = S.else) OR (k = S.end) THEN
       Drop(p); arm := CaseArm(p);
-      IF arm # NIL THEN arms := D.Cat(arms, D.Nest(p.ind, D.Cat(D.HardLine(), arm))) END
+      IF arm # NIL THEN
+        arms := D.Cat(arms, D.Nest(p.ind, D.Cat(D.HardLine(), arm)))
+      END
     ELSE
       bar := TokItem(p, TRUE);
       arm := CaseArm(p);
-      arms := D.Cat(arms, D.Cat3(D.HardLine(), bar, D.Cat(BarPad(p), D.Nest(p.ind, arm))))
+      arms := D.Cat(arms,
+              D.Cat3(D.HardLine(), bar, D.Cat(BarPad(p), D.Nest(p.ind, arm))))
     END
   END;
   d := D.Cat(d, arms);
   IF Is(p, S.else) THEN
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
+    br := BodyBreak(p);
     body := BodySeq(p);
-    IF body # NIL THEN d := D.Cat(d, D.Group(D.Nest(p.ind, D.Cat(D.Line(), body)))) END
+    IF body # NIL THEN d := D.Cat(d, D.Group(D.Nest(p.ind, D.Cat(br, body))))
+    END
   ELSE
     d := D.Cat(d, D.Nest(p.ind, TakeLead(p)))
   END;
@@ -676,7 +723,7 @@ END CaseStatement;
 
 (* Qualident ":" Qualident DO, a WITH's guard *)
 PROCEDURE Guard(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := Qualident(p); Put(d, Expect(p, S.colon)); Put(d, D.Space());
   d := D.Cat3(d, Qualident(p), D.Space());
@@ -687,21 +734,21 @@ END Guard;
    [ELSE StatementSeq] END: like WHILE with one guard, else always
    broken *)
 PROCEDURE WithStatement(p: Parser; startLine: LONGINT): D.Doc;
-VAR d: D.Doc; c: D.Doc; many: BOOLEAN;
+  VAR d: D.Doc; c: D.Doc; many: BOOLEAN;
 BEGIN
   c := D.NewChoice(); many := FALSE;
   d := Tok(p); Put(d, D.Space()); Put(d, Guard(p));
-  d := D.Cat(d, Body(p, c, BodySeq(p)));
+  d := D.Cat(d, Body(p, c));
   WHILE Is(p, S.bar) DO
     many := TRUE;
     d := D.Cat3(d, D.ChoiceLine(c), TokItem(p, TRUE));
     d := D.Cat3(d, D.Space(), Guard(p));
-    d := D.Cat(d, Body(p, c, BodySeq(p)))
+    d := D.Cat(d, Body(p, c))
   END;
   IF Is(p, S.else) THEN
     many := TRUE;
     d := D.Cat3(d, D.ChoiceLine(c), TokItem(p, TRUE));
-    d := D.Cat(d, Body(p, c, BodySeq(p)))
+    d := D.Cat(d, Body(p, c))
   END;
   d := D.Cat3(d, D.ChoiceLine(c), Expect(p, S.end));
   Lines(p, c, startLine);
@@ -712,21 +759,21 @@ END WithStatement;
 (* IF Expr THEN StatementSeq {ELSIF Expr THEN StatementSeq}
    [ELSE StatementSeq] END *)
 PROCEDURE IfStatement(p: Parser; startLine: LONGINT): D.Doc;
-VAR d, c: D.Doc;
+  VAR d, c: D.Doc;
 BEGIN
   c := D.NewChoice();
   d := Tok(p); Put(d, D.Space()); Put(d, Expr(p));
   d := D.Cat3(d, D.Space(), Expect(p, S.then));
-  d := D.Cat(d, Body(p, c, BodySeq(p)));
+  d := D.Cat(d, Body(p, c));
   WHILE Is(p, S.elsif) DO
     d := D.Cat3(d, D.ChoiceLine(c), TokItem(p, TRUE));
     d := D.Cat3(d, D.Space(), Expr(p));
     d := D.Cat3(d, D.Space(), Expect(p, S.then));
-    d := D.Cat(d, Body(p, c, BodySeq(p)))
+    d := D.Cat(d, Body(p, c))
   END;
   IF Is(p, S.else) THEN
     d := D.Cat3(d, D.ChoiceLine(c), TokItem(p, TRUE));
-    d := D.Cat(d, Body(p, c, BodySeq(p)))
+    d := D.Cat(d, Body(p, c))
   END;
   d := D.Cat3(d, D.ChoiceLine(c), Expect(p, S.end));
   Lines(p, c, startLine);
@@ -734,7 +781,7 @@ BEGIN
 END IfStatement;
 
 PROCEDURE Statement(p: Parser; VAR it: Item);
-VAR d, c, pre: D.Doc; start: LONGINT;
+  VAR d, c, pre: D.Doc; start: LONGINT;
 BEGIN
   start := p.tok.line; it.startLine := start; it.simple := TRUE;
   pre := ItemLead(p);
@@ -759,13 +806,13 @@ BEGIN
       it.simple := FALSE; c := D.NewChoice();
       d := Tok(p); Put(d, D.Space()); Put(d, Expr(p));
       d := D.Cat3(d, D.Space(), Expect(p, S.do));
-      d := D.Cat(d, Body(p, c, BodySeq(p)));
+      d := D.Cat(d, Body(p, c));
       d := D.Group(D.Cat3(d, D.ChoiceLine(c), Expect(p, S.end)));
       Lines(p, c, start)
   | S.repeat:
       it.simple := FALSE; c := D.NewChoice();
       d := Tok(p);
-      d := D.Cat(d, Body(p, c, BodySeq(p)));
+      d := D.Cat(d, Body(p, c));
       d := D.Cat3(d, D.ChoiceLine(c), Expect(p, S.until));
       d := D.Group(D.Cat3(d, D.Space(), Expr(p)));
       Lines(p, c, start)
@@ -780,13 +827,13 @@ BEGIN
         d := D.Cat3(d, D.Space(), Tok(p)); d := D.Cat3(d, D.Space(), Expr(p))
       END;
       d := D.Cat3(d, D.Space(), Expect(p, S.do));
-      d := D.Cat(d, Body(p, c, BodySeq(p)));
+      d := D.Cat(d, Body(p, c));
       d := D.Group(D.Cat3(d, D.ChoiceLine(c), Expect(p, S.end)));
       Lines(p, c, start)
   | S.loop:
       it.simple := FALSE; c := D.NewChoice();
       d := Tok(p);
-      d := D.Cat(d, Body(p, c, BodySeq(p)));
+      d := D.Cat(d, Body(p, c));
       d := D.Group(D.Cat3(d, D.ChoiceLine(c), Expect(p, S.end)));
       Lines(p, c, start)
   | S.with: it.simple := FALSE; d := WithStatement(p, start)
@@ -798,21 +845,22 @@ BEGIN
         d := D.Cat3(d, D.Space(), Expr(p))
       END
   END;
-  it.doc := D.Cat(pre, d)
+  it.lead := pre; it.doc := d
 END Statement;
 
 PROCEDURE StartsStatement(kind: INTEGER): BOOLEAN;
 BEGIN
-  RETURN (kind = S.ident) OR (kind = S.if) OR (kind = S.case) OR (kind = S.while)
-    OR (kind = S.repeat) OR (kind = S.for) OR (kind = S.loop) OR (kind = S.with)
-    OR (kind = S.exit) OR (kind = S.return)
+  RETURN (kind = S.ident) OR (kind = S.if) OR (kind = S.case)
+      OR (kind = S.while) OR (kind = S.repeat) OR (kind = S.for)
+      OR (kind = S.loop) OR (kind = S.with) OR (kind = S.exit)
+      OR (kind = S.return)
 END StartsStatement;
 
 (* Statement {";" Statement}, or NIL when it has no statements. An empty
    statement's semicolon is dropped; the one after the last statement is
    kept. *)
 PROCEDURE StatementSeq(p: Parser): D.Doc;
-VAR q: Seq; it: Item;
+  VAR q: Seq; it: Item;
 BEGIN
   InitSeq(q);
   LOOP
@@ -839,8 +887,9 @@ END StatementSeq;
    fit; --keep-lines keeps them where the source has them, and on the
    keyword's line only if they all are, and fit. *)
 PROCEDURE Section(p: Parser): D.Doc;
-VAR
-  kw, d, pre: D.Doc; q: Seq; it: Item; kind, n: INTEGER; kwLine, firstLine: LONGINT;
+  VAR
+    kw, d, pre: D.Doc; q: Seq; it: Item; kind, n: INTEGER;
+    kwLine, firstLine: LONGINT;
 BEGIN
   kind := p.tok.kind; kwLine := p.tok.line;
   pre := ItemLead(p);
@@ -848,6 +897,7 @@ BEGIN
   InitSeq(q); n := 0; firstLine := p.tok.line;
   WHILE Is(p, S.ident) DO
     it.startLine := p.tok.line; it.simple := TRUE;
+    it.lead := ItemLead(p);
     IF kind = S.var THEN
       d := IdentList(p, TRUE); Put(d, Expect(p, S.colon));
       d := D.Cat3(d, D.Space(), Type(p));
@@ -868,7 +918,8 @@ BEGIN
   d := SeqDoc(q);
   IF d = NIL THEN
     d := kw
-  ELSIF (n = 1) OR (p.mode = pack) OR (p.mode = keepLines) & (firstLine = kwLine) THEN
+  ELSIF (n = 1) OR (p.mode = pack)
+      OR (p.mode = keepLines) & (firstLine = kwLine) THEN
     (* on the keyword's line if they all fit there; with --keep-lines, only
        if the first one was there *)
     d := D.Group(D.Cat(kw, D.Nest(p.ind, D.Cat(D.Line(), d))))
@@ -880,7 +931,7 @@ END Section;
 
 (* [ident ":"] ident, a type-bound procedure's receiver, after VAR *)
 PROCEDURE Receiver(p: Parser): D.Doc;
-VAR d: D.Doc;
+  VAR d: D.Doc;
 BEGIN
   d := Tok(p);
   IF Is(p, S.var) THEN d := D.Cat3(d, Tok(p), D.Space()) END;
@@ -893,7 +944,7 @@ END Receiver;
    not a forward declaration, nor poc's external one, nor voc's code
    procedure. *)
 PROCEDURE HasBody(p: Parser): BOOLEAN;
-VAR k: INTEGER;
+  VAR k: INTEGER;
 BEGIN
   k := PeekKind(p);
   RETURN (k # S.arrow) & (k # S.lbrak) & (k # S.minus)
@@ -902,7 +953,11 @@ END HasBody;
 (* A blank line before the current token, ahead of its comments. *)
 PROCEDURE ForceBlank(p: Parser);
 BEGIN
-  IF p.tok.lead # NIL THEN p.tok.lead.blankBefore := TRUE ELSE p.tok.blankBefore := TRUE END
+  IF p.tok.lead # NIL THEN
+    p.tok.lead.blankBefore := TRUE
+  ELSE
+    p.tok.blankBefore := TRUE
+  END
 END ForceBlank;
 
 (* PROCEDURE ["^" | "[" string ["," string] "]" | "-" | "+" | "*"]
@@ -911,7 +966,7 @@ END ForceBlank;
    ";" DeclSeq [BEGIN StatementSeq] END ident; the ";" after it is the
    caller's. *)
 PROCEDURE ProcedureDecl(p: Parser): D.Doc;
-VAR d, decls, body: D.Doc; mark: INTEGER; procs: BOOLEAN; f: D.FillBuilder;
+  VAR d, decls, body: D.Doc; mark: INTEGER; procs: BOOLEAN; f: D.FillBuilder;
 BEGIN
   d := TokItem(p, TRUE);
   mark := p.tok.kind;
@@ -920,7 +975,9 @@ BEGIN
   ELSIF mark = S.lbrak THEN
     d := D.Cat3(d, D.Space(), Tok(p));
     d := D.Cat(d, Expect(p, S.string));
-    IF Is(p, S.comma) THEN d := D.Cat3(d, Tok(p), D.Space()); d := D.Cat(d, Expect(p, S.string)) END;
+    IF Is(p, S.comma) THEN
+      d := D.Cat3(d, Tok(p), D.Space()); d := D.Cat(d, Expect(p, S.string))
+    END;
     d := D.Cat(d, Expect(p, S.rbrak))
   ELSIF (mark = S.minus) OR (mark = S.plus) OR (mark = S.times) THEN
     d := D.Cat3(d, D.Space(), Tok(p))
@@ -938,18 +995,24 @@ BEGIN
       d := D.Cat(d, D.Group(D.Nest(p.cont, D.Cat(D.Line(), Tok(p)))))
     ELSIF Is(p, S.number) THEN
       D.InitFill(f); D.Add(f, Tok(p));
-      WHILE Is(p, S.comma) DO D.Add(f, Tok(p)); D.Sep(f); D.Add(f, Expect(p, S.number)) END;
+      WHILE Is(p, S.comma) DO
+        D.Add(f, Tok(p)); D.Sep(f); D.Add(f, Expect(p, S.number))
+      END;
       d := D.Cat3(d, D.Space(), D.Nest(p.cont, D.Fill(f)))
     END;
     RETURN d
   END;
   d := D.Cat(d, Expect(p, S.semicolon));
   decls := DeclSeq(p, procs);
-  IF decls # NIL THEN d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), decls))) END;
+  IF decls # NIL THEN
+    d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), decls)))
+  END;
   IF Is(p, S.begin) THEN
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
     body := BodySeq(p);
-    IF body # NIL THEN d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body))) END
+    IF body # NIL THEN
+      d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body)))
+    END
   ELSE
     d := D.Cat(d, D.Nest(p.ind, TakeLead(p)))
   END;
@@ -962,7 +1025,7 @@ END ProcedureDecl;
    procedures. A blank line goes between two procedures when either has a
    body, and after a procedure with a body that a section follows. *)
 PROCEDURE DeclSeq(p: Parser; VAR procs: BOOLEAN): D.Doc;
-VAR d, item: D.Doc; prevProc, prevBody, body: BOOLEAN;
+  VAR d, item: D.Doc; prevProc, prevBody, body: BOOLEAN;
 BEGIN
   d := NIL; prevProc := FALSE; prevBody := FALSE; procs := FALSE;
   LOOP
@@ -986,14 +1049,15 @@ END DeclSeq;
 (* IMPORT ident [":=" ident] {"," ...} ";", filling lines, continued at
    cont *)
 PROCEDURE ImportList(p: Parser): D.Doc;
-VAR d, imp: D.Doc; f: D.FillBuilder;
+  VAR d, imp: D.Doc; f: D.FillBuilder;
 BEGIN
   d := TokItem(p, TRUE);
   D.InitFill(f);
   LOOP
     imp := Expect(p, S.ident);
     IF Is(p, S.becomes) THEN
-      imp := D.Cat3(imp, D.Space(), Tok(p)); imp := D.Cat3(imp, D.Space(), Expect(p, S.ident))
+      imp := D.Cat3(imp, D.Space(), Tok(p));
+      imp := D.Cat3(imp, D.Space(), Expect(p, S.ident))
     END;
     D.Add(f, imp);
     IF Is(p, S.comma) THEN D.Add(f, Tok(p)); D.Sep(f) ELSE EXIT END
@@ -1005,7 +1069,7 @@ END ImportList;
 (* MODULE ident ";" [ImportList] DeclSeq [BEGIN StatementSeq] END ident ".";
    the period is not consumed, so nothing after it is scanned. *)
 PROCEDURE Module(p: Parser; moduleIndent: BOOLEAN): D.Doc;
-VAR d, inner, body: D.Doc; procs: BOOLEAN; n: LONGINT;
+  VAR d, inner, body: D.Doc; procs: BOOLEAN; n: LONGINT;
 BEGIN
   IF ~Is(p, S.module) THEN Expected(p, "MODULE"); RETURN D.Empty() END;
   d := TokItem(p, TRUE);
@@ -1023,7 +1087,9 @@ BEGIN
   IF Is(p, S.begin) THEN
     d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
     body := BodySeq(p);
-    IF body # NIL THEN d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body))) END
+    IF body # NIL THEN
+      d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), body)))
+    END
   ELSE
     d := D.Cat(d, D.Nest(n, TakeLead(p)))
   END;
@@ -1038,9 +1104,10 @@ END Module;
 
 (* Formats src[0 .. len - 1] into out. FALSE, with the position and a
    message, on a syntax error. *)
-PROCEDURE Format*(src: OppText.Text; len: LONGINT; VAR opts: Options; VAR out: OppText.Buffer;
-                  VAR line, column: LONGINT; VAR msg: ARRAY OF CHAR): BOOLEAN;
-VAR p: Parser; d: D.Doc; i, end: LONGINT; blank: BOOLEAN;
+PROCEDURE Format*(src: OppText.Text; len: LONGINT; VAR opts: Options;
+                  VAR out: OppText.Buffer; VAR line, column: LONGINT;
+                  VAR msg: ARRAY OF CHAR): BOOLEAN;
+  VAR p: Parser; d: D.Doc; i, end: LONGINT; blank: BOOLEAN;
 BEGIN
   NEW(p);
   p.s := S.New(src, len);
@@ -1059,7 +1126,9 @@ BEGIN
   (* the text after the period, as it is, unless it is only white space *)
   end := p.tok.end; blank := TRUE;
   FOR i := end TO len - 1 DO
-    IF (src[i] # " ") & (src[i] # 9X) & (src[i] # 0DX) & (src[i] # 0AX) THEN blank := FALSE END
+    IF (src[i] # " ") & (src[i] # 9X) & (src[i] # 0DX) & (src[i] # 0AX) THEN
+      blank := FALSE
+    END
   END;
   IF ~blank THEN
     DEC(out.len); out.chars[out.len] := 0X;

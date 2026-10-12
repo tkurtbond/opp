@@ -36,6 +36,7 @@ opp follows the layout of `~/Repos/Oberon/Ropes` and `oberon-tools`:
 make                 # build Opp with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
 make corpus          # format large bodies of real Oberon and check them (PLAN.md)
+make format          # format opp's own source with opp
 make install         # copy Opp to ~/local/bin as opp (BINDIR to change)
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
@@ -72,6 +73,16 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   it carefully before committing it**; never hand-edit generated text.
   Build fixture argument lists in Python (`subprocess` with a list), not
   with a shell `eval`.
+- `tests/in-place.sh` checks `--in-place` on copies in a temporary
+  directory, which a fixture cannot; `make test` and `test-poc` run it
+  after the fixtures.
+- `make corpus` runs `tools/corpus.py` over `CORPUS_DIRS` (see the
+  `GNUmakefile`); `tools/corpus-known-errors` lists the corpus files that
+  are not valid Oberon. Any failure it prints is a bug in opp; the long
+  lines it lists are worth a look.
+- **opp's own source is formatted by opp** (`make format`, with
+  `-k --no-module-indent`); the fixture `opp-own-source` fails until it
+  is. Run `make format` after editing, and read what it changed.
 - A change is checked with `make test`, `make -f pocGNUmakefile test-poc`
   and `make corpus` before it is committed.
 
@@ -121,7 +132,8 @@ poc accept:
 | `OppScanner.Mod` | Lossless lexer: tokens with their comments, blank lines and columns |
 | `OppDoc.Mod`     | Layout documents and the renderer that fits them to a width |
 | `OppFormat.Mod`  | Recursive-descent parser for poc + voc that builds a document |
-| `Opp.Mod`        | Command line, file handling, the safety check |
+| `OppCheck.Mod`   | The safety check: the output has the input's tokens and comments |
+| `Opp.Mod`        | Command line, file handling, `--in-place` and `--check` |
 
 Each module's header comment says what it does; keep them current.
 
@@ -132,7 +144,7 @@ Each module's header comment says what it does; keep them current.
   with the same text, the same comments (their text compared after
   re-indentation), and the same text after `END M.`. A mismatch is an
   internal error (exit 3), and nothing is written. Never weaken or bypass
-  this check to make a test pass.
+  this check to make a test pass. (`OppCheck`; the output must also parse.)
 - **No comment is ever lost or moved past a token.** A token opp drops
   (an empty statement's `;`, an empty `CASE` arm's `|`) hands its comments
   to the next token.

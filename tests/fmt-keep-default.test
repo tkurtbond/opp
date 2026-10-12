@@ -1,0 +1,37 @@
+# The input of fmt-keep one statement per line, for comparison.
+program Opp
+arg --no-module-indent
+arg tests/data/fmt-keep.Mod
+status 0
+output
+MODULE Keep;
+CONST
+  (* modes *)
+  one = 1;
+  two = 2;
+  three = 3;
+PROCEDURE Kind(name: ARRAY OF CHAR; n: INTEGER): INTEGER;
+  VAR k: INTEGER;
+BEGIN
+  IF name = "BEGIN" THEN
+    k := 1
+  ELSIF name = "BY" THEN
+    k := 2
+  ELSE
+    k := 0
+  END;
+  CASE n OF
+    0: k := 1
+  | 1:
+      k := 2;
+      INC(k)
+  ELSE
+    k := 3;
+    DEC(k)
+  END;
+  WHILE k > 0 DO
+    DEC(k)
+  END;
+  RETURN k
+END Kind;
+END Keep.

@@ -1,0 +1,8 @@
+# --tokens with --check is a command line mistake.
+program Opp
+arg --tokens
+arg -c
+arg tests/data/formatted.Mod
+status 2
+output
+opp: --tokens cannot be used with --in-place or --check

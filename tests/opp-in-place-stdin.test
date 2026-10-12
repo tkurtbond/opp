@@ -1,0 +1,6 @@
+# --in-place needs files: standard input is a command line mistake.
+program Opp
+arg --in-place
+status 2
+output
+opp: --in-place needs files, not standard input

@@ -11,9 +11,10 @@ statements one per line, packs short ones onto shared lines, or keeps the
 author's own grouping. Before it writes anything it checks that its output
 has exactly the tokens and comments of its input.
 
-**Status: under construction.** opp formats to standard output; the
-safety check, `--in-place` and `--check` come next (Phase 4 of
-`PLAN.md`, which has the design and the phases).
+**Status: working; being polished.** opp formats files to standard output
+or in place, and checks them with `--check`. What remains is polish from
+reviewing its output on real code, and a man page (Phase 5 of `PLAN.md`,
+which has the design and the phases).
 
 ## Usage
 
@@ -35,6 +36,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
+| `--damage N` | for opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) so the safety check fails |
 | `-h`, `--help` | show the usage and exit |
 
 Exit status: 0 success; 1 a syntax error, an unreadable file, or (with
@@ -51,6 +53,8 @@ opp is written in Oberon-2 and builds with either compiler. It needs
 ```sh
 make                 # build Opp with voc
 make test            # build, then run the fixtures in tests/
+make corpus          # format poc, voc and other Oberon repos, and check it
+make format          # format opp's own source with opp
 make install         # copy Opp to ~/local/bin as opp (BINDIR to change)
 make uninstall       # remove ~/local/bin/opp
 make -f pocGNUmakefile test-poc   # build with poc instead, then run the fixtures

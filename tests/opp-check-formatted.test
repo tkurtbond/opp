@@ -1,0 +1,6 @@
+# --check on files already formatted: no output, exit 0.
+program Opp
+arg --check
+arg tests/data/formatted.Mod
+status 0
+output

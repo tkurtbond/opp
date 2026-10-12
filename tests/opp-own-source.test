@@ -1,0 +1,16 @@
+# opp's own source is formatted as opp formats it: --keep-lines, with
+# declarations at column 1 (make format). Reformat it, rather than
+# changing this fixture, when this fails.
+program Opp
+arg -c
+arg -k
+arg --no-module-indent
+arg Opp.Mod
+arg OppCheck.Mod
+arg OppDoc.Mod
+arg OppDocTest.Mod
+arg OppFormat.Mod
+arg OppScanner.Mod
+arg OppText.Mod
+status 0
+output

@@ -56,25 +56,25 @@ CONST
 TYPE
   Comment* = POINTER TO CommentDesc;
   CommentDesc* = RECORD
-    text*: OppText.Text;      (* the whole comment, its delimiters included, carriage returns dropped *)
-    line*, column*: LONGINT;  (* where the comment starts; column is visual *)
-    blankBefore*: BOOLEAN;    (* a blank line separates it from what precedes it *)
-    newlineAfter*: BOOLEAN;   (* a line break (or the end of the text) follows it *)
-    multiLine*: BOOLEAN;      (* its text holds a line break *)
+    text*: OppText.Text; (* the whole comment, its delimiters included, carriage returns dropped *)
+    line*, column*: LONGINT; (* where the comment starts; column is visual *)
+    blankBefore*: BOOLEAN; (* a blank line separates it from what precedes it *)
+    newlineAfter*: BOOLEAN; (* a line break (or the end of the text) follows it *)
+    multiLine*: BOOLEAN; (* its text holds a line break *)
     next*: Comment
   END;
 
   Token* = POINTER TO TokenDesc;
   TokenDesc* = RECORD
     kind*: INTEGER;
-    text*: OppText.Text;      (* exactly as written *)
-    line*, column*: LONGINT;  (* where it starts; column is visual *)
-    endLine*: LONGINT;        (* the line it ends on *)
-    start*, end*: LONGINT;    (* its text is src[start .. end - 1] *)
-    blankBefore*: BOOLEAN;    (* a blank line separates it from what precedes it *)
-    lead*: Comment;           (* comments on lines of their own before it *)
-    trail*: Comment;          (* comments after it on its own line *)
-    next: Token               (* the lookahead token, in Scanner.ahead *)
+    text*: OppText.Text; (* exactly as written *)
+    line*, column*: LONGINT; (* where it starts; column is visual *)
+    endLine*: LONGINT; (* the line it ends on *)
+    start*, end*: LONGINT; (* its text is src[start .. end - 1] *)
+    blankBefore*: BOOLEAN; (* a blank line separates it from what precedes it *)
+    lead*: Comment; (* comments on lines of their own before it *)
+    trail*: Comment; (* comments after it on its own line *)
+    next: Token (* the lookahead token, in Scanner.ahead *)
   END;
 
   Scanner* = POINTER TO ScannerDesc;
@@ -82,9 +82,9 @@ TYPE
     src: OppText.Text;
     len, pos: LONGINT;
     line, column: LONGINT;
-    prev: Token;          (* the last token scanned *)
+    prev: Token; (* the last token scanned *)
     lastComment: Comment; (* the last comment scanned since prev *)
-    ahead: Token;         (* a token Peek scanned, which Next returns next *)
+    ahead: Token; (* a token Peek scanned, which Next returns next *)
     error*: BOOLEAN;
     errorLine*, errorColumn*: LONGINT;
     errorMessage*: ARRAY 80 OF CHAR
@@ -92,8 +92,8 @@ TYPE
 
 PROCEDURE IsLetter(ch: CHAR): BOOLEAN;
 BEGIN
-  RETURN (ch >= "a") & (ch <= "z") OR (ch >= "A") & (ch <= "Z")
-    OR (ch = "_") OR (ch = "$")
+  RETURN (ch >= "a") & (ch <= "z") OR (ch >= "A") & (ch <= "Z") OR (ch = "_")
+      OR (ch = "$")
 END IsLetter;
 
 PROCEDURE IsDigit(ch: CHAR): BOOLEAN;
@@ -126,7 +126,7 @@ END PeekCh;
 
 (* Moves past the current character, keeping line and visual column. *)
 PROCEDURE Advance(s: Scanner);
-VAR ch: CHAR;
+  VAR ch: CHAR;
 BEGIN
   IF s.pos < s.len THEN
     ch := s.src[s.pos]; INC(s.pos);
@@ -144,7 +144,7 @@ END Advance;
 
 (* The text from start to the current position, without carriage returns. *)
 PROCEDURE TextFrom(s: Scanner; start: LONGINT): OppText.Text;
-VAR t: OppText.Text; i, n: LONGINT;
+  VAR t: OppText.Text; i, n: LONGINT;
 BEGIN
   n := 0;
   FOR i := start TO s.pos - 1 DO
@@ -159,7 +159,7 @@ BEGIN
 END TextFrom;
 
 PROCEDURE New*(src: OppText.Text; len: LONGINT): Scanner;
-VAR s: Scanner;
+  VAR s: Scanner;
 BEGIN
   NEW(s);
   s.src := src; s.len := len; s.pos := 0; s.line := 1; s.column := 1;
@@ -170,7 +170,7 @@ END New;
 
 (* The comment that starts here, nested comments included. *)
 PROCEDURE ScanComment(s: Scanner): Comment;
-VAR c: Comment; start, depth: LONGINT; ch: CHAR;
+  VAR c: Comment; start, depth: LONGINT; ch: CHAR;
 BEGIN
   NEW(c); c.line := s.line; c.column := s.column; c.next := NIL;
   c.blankBefore := FALSE; c.newlineAfter := FALSE; c.multiLine := FALSE;
@@ -194,7 +194,7 @@ BEGIN
 END ScanComment;
 
 PROCEDURE Keyword(VAR name: ARRAY OF CHAR): INTEGER;
-VAR k: INTEGER;
+  VAR k: INTEGER;
 BEGIN
   CASE name[0] OF
     "A": IF name = "ARRAY" THEN k := array ELSE k := ident END
@@ -279,7 +279,7 @@ END ScanIdent;
 (* digit {hexDigit} ["H" | "X"], or digit {digit} "." {digit}
    [("E" | "D") ["+" | "-"] digit {digit}]; "1..2" is a number and "..". *)
 PROCEDURE ScanNumber(s: Scanner; t: Token);
-VAR allDecimal: BOOLEAN;
+  VAR allDecimal: BOOLEAN;
 BEGIN
   allDecimal := TRUE;
   WHILE IsHexDigit(Ch(s)) DO
@@ -307,7 +307,7 @@ END ScanNumber;
 
 (* A string ends at its closing quote, on its own line. *)
 PROCEDURE ScanString(s: Scanner; t: Token);
-VAR quote: CHAR;
+  VAR quote: CHAR;
 BEGIN
   quote := Ch(s); Advance(s);
   WHILE (s.pos < s.len) & (Ch(s) # quote) & (Ch(s) # 0AX) DO Advance(s) END;
@@ -321,7 +321,7 @@ BEGIN
 END ScanString;
 
 PROCEDURE ScanSymbol(s: Scanner; t: Token);
-VAR ch, next: CHAR;
+  VAR ch, next: CHAR;
 BEGIN
   ch := Ch(s); Advance(s); next := Ch(s);
   CASE ch OF
@@ -344,7 +344,8 @@ BEGIN
   | "=": t.kind := eql
   | "#": t.kind := neq
   | ".": IF next = "." THEN Advance(s); t.kind := upto ELSE t.kind := period END
-  | ":": IF next = "=" THEN Advance(s); t.kind := becomes ELSE t.kind := colon END
+  | ":":
+      IF next = "=" THEN Advance(s); t.kind := becomes ELSE t.kind := colon END
   | "<": IF next = "=" THEN Advance(s); t.kind := leq ELSE t.kind := lss END
   | ">": IF next = "=" THEN Advance(s); t.kind := geq ELSE t.kind := gtr END
   ELSE
@@ -358,10 +359,10 @@ END ScanSymbol;
    token's line become its trailing comments, the rest this token's
    leading ones. *)
 PROCEDURE Scan(s: Scanner): Token;
-VAR
-  t: Token; c, leadTail: Comment; ch: CHAR;
-  newlines: LONGINT;            (* line breaks since the last token or comment *)
-  sinceToken: BOOLEAN;          (* a line break since the last token *)
+  VAR
+    t: Token; c, leadTail: Comment; ch: CHAR;
+    newlines: LONGINT; (* line breaks since the last token or comment *)
+    sinceToken: BOOLEAN; (* a line break since the last token *)
 BEGIN
   NEW(t); t.lead := NIL; t.trail := NIL; t.next := NIL; leadTail := NIL;
   newlines := 0; sinceToken := FALSE;
@@ -376,9 +377,14 @@ BEGIN
       Advance(s)
     ELSIF (ch = "(") & (PeekCh(s, 1) = "*") THEN
       c := ScanComment(s);
-      c.blankBefore := (newlines >= 2) & ((s.prev # NIL) OR (s.lastComment # NIL) OR (leadTail # NIL));
+      c.blankBefore := (newlines >= 2)
+          & ((s.prev # NIL) OR (s.lastComment # NIL) OR (leadTail # NIL));
       IF (s.prev # NIL) & ~sinceToken THEN
-        IF s.prev.trail = NIL THEN s.prev.trail := c ELSE s.lastComment.next := c END
+        IF s.prev.trail = NIL THEN
+          s.prev.trail := c
+        ELSE
+          s.lastComment.next := c
+        END
       ELSE
         IF leadTail = NIL THEN t.lead := c ELSE leadTail.next := c END;
         leadTail := c
@@ -388,7 +394,9 @@ BEGIN
       EXIT
     END
   END;
-  IF (s.pos >= s.len) & (s.lastComment # NIL) THEN s.lastComment.newlineAfter := TRUE END;
+  IF (s.pos >= s.len) & (s.lastComment # NIL) THEN
+    s.lastComment.newlineAfter := TRUE
+  END;
   t.blankBefore := (newlines >= 2) & ((s.prev # NIL) OR (leadTail # NIL));
   t.line := s.line; t.column := s.column; t.start := s.pos;
   ch := Ch(s);
@@ -406,7 +414,7 @@ END Scan;
 
 (* The next token. *)
 PROCEDURE Next*(s: Scanner): Token;
-VAR t: Token;
+  VAR t: Token;
 BEGIN
   IF s.ahead # NIL THEN
     t := s.ahead; s.ahead := NIL

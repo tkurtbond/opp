@@ -1,0 +1,9 @@
+# The safety check: a changed token is an internal error (exit 3), and
+# nothing is written.
+program Opp
+arg --damage
+arg 1
+arg tests/data/fmt-comments.Mod
+status 3
+output
+opp: internal error: tests/data/fmt-comments.Mod: the formatted text, at 4:8: the output has the token Xomments where the input has the token Comments; nothing written

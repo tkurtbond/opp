@@ -12,8 +12,7 @@ MODULE Declarations; (* modules, imports, declaration sections, types *)
     one = 1; two = one + 1; (* trailing comment *)
     name* = "declarations";
 
-    big = 0FFFFH;
-    ch = 41X; pi = 3.14159D0;
+    big = 0FFFFH; ch = 41X; pi = 3.14159D0;
   TYPE
     Ptr* = POINTER TO Rec;
     Rec* = RECORD (Base)

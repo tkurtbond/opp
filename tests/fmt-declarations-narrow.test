@@ -30,7 +30,7 @@ MODULE Declarations; (* modules, imports, declaration sections, types *)
     Matrix = ARRAY 3, 4 OF REAL;
     Open = POINTER TO ARRAY OF ARRAY OF CHAR;
     Handler = PROCEDURE (VAR msg: Rec;
-                         n: INTEGER): BOOLEAN;
+            n: INTEGER): BOOLEAN;
     Proc = PROCEDURE;
     Nested = RECORD
       inner: RECORD

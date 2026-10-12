@@ -1,0 +1,7 @@
+# --check on standard input names it (stdin).
+program Opp
+arg -c
+input tests/data/fmt-statements.Mod
+status 1
+output
+(stdin)

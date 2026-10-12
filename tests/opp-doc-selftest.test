@@ -20,6 +20,8 @@ ok - soft break: none when the first item fits after it
 ok - soft break: a line break when the first item does not fit
 ok - soft break: nothing when flat
 ok - soft break: a first item that fits ignores the items after it
+ok - align or nest: aligned when every item fits aligned
+ok - align or nest: nested when an item fits only nested
 ok - an empty line has no indentation
 ok - no space at the end of a line
 ok - a flat line at the end of a line leaves no space
@@ -48,6 +50,10 @@ ok - an undecided choice may be flat
 ok - a choice of flat lines breaks when too long
 ok - a choice of hard lines always breaks
 ok - a choice of hard lines breaks the groups around it
+ok - a kept line in a flat choice is a choice line
+ok - a kept line in a flat choice breaks with it
+ok - a kept line in a hard choice stays when what follows fits
+ok - a kept line in a hard choice breaks when what follows does not fit
 ok - a comment of one line
 ok - a comment moved right moves its later lines
 ok - a comment moved left moves its later lines
@@ -61,4 +67,4 @@ ok - a comment of one line does not break its group
 ok - a trailing comment does not break the code before it
 ok - a fill puts an item with a trailing comment on the next line if the comment does not fit
 ok - a comment before code on the line is counted
-58/58 tests passed.
+64/64 tests passed.

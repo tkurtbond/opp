@@ -1,0 +1,5 @@
+# Files in the corpus that are not valid Oberon, which opp must reject
+# (tools/corpus.py, make corpus). Each line is the end of a path.
+oberon-experiments/general/TryExtension.Mod    # RECORD without END
+oberon-experiments/general/TryLinkedList.Mod   # unfinished expression
+src/tools/HeapDump/HeapDump.Mod                # voc rejects it too

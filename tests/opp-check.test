@@ -1,0 +1,13 @@
+# --check names each file that is not formatted, writes nothing else,
+# and exits 1; a file with a syntax error is reported as such.
+program Opp
+arg -c
+arg tests/data/fmt-declarations.Mod
+arg tests/data/formatted.Mod
+arg tests/data/fmt-error-paren.Mod
+arg tests/data/fmt-expressions.Mod
+status 1
+output
+tests/data/fmt-declarations.Mod
+tests/data/fmt-error-paren.Mod:3:14: expected ')', found ';'
+tests/data/fmt-expressions.Mod

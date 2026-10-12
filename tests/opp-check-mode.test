@@ -1,0 +1,9 @@
+# --check formats as the other options say: formatted.Mod is not
+# formatted for --pack.
+program Opp
+arg -c
+arg -p
+arg tests/data/formatted.Mod
+status 1
+output
+tests/data/formatted.Mod

@@ -1,0 +1,32 @@
+# --damage takes 1 to 3.
+program Opp
+arg --damage
+arg 4
+arg tests/data/formatted.Mod
+status 2
+output
+Error: Value out of range for option --damage.
+opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, or -, standard input
+
+  -w <arg>, --width <arg>
+      The maximum line length (20 to 1000; default 80).
+  -i <arg>, --indent <arg>
+      Columns per indentation level (1 to 16; default 2).
+  -1, --one-per-line
+      Put every statement on its own line (the default).
+  -p, --pack
+      Pack short statements and declarations onto shared lines.
+  -k, --keep-lines
+      Keep statements and declarations on shared lines where the source has them, while they fit.
+  --no-module-indent
+      Start a module's declarations at column 1; its statements stay indented.
+  --in-place
+      Replace each file with its formatted text.
+  -c, --check
+      Write nothing; exit 1 and name each file that would change.
+  --tokens
+      List each file's tokens and comments instead of formatting it (a debugging aid).
+  --damage <arg>
+      For opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) to show that the safety check catches it.
+  -h, --help
+      Show this help and exit.

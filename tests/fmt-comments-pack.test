@@ -22,8 +22,7 @@ MODULE Comments; (* trailing the module heading *)
     x := 2; (* a trailing comment
                on two lines *)
 
-    x := (* in the middle *) 3;
-    x := 4;
+    x := (* in the middle *) 3; x := 4;
     IF x > 0 THEN
       x := 5
       (* at the end of a body *)

@@ -26,12 +26,9 @@ MODULE Statements;
     ELSE i := -1
     END;
     WITH p: Leaf DO i := p.value END;
-    WITH p: Leaf DO
-      i := p.value
-    | p: Inner DO
-      i := 0
-    ELSE
-      i := -1
+    WITH p: Leaf DO i := p.value
+    | p: Inner DO i := 0
+    ELSE i := -1
     END;
     p.left(Inner).right := NIL; p(Leaf).value := 3;
     IF done THEN RETURN END
