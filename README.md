@@ -34,6 +34,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--align WHAT` | the spaces an author lines things up with: `keep` them while the line fits (default), or `drop` them to one space |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |

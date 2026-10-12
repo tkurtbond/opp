@@ -9,7 +9,7 @@ MODULE Declarations; (* modules, imports, declaration sections, types *)
       Args;
   CONST
     one = 1;
-    two = one + 1; (* trailing comment *)
+    two = one + 1;   (* trailing comment *)
     name* = "declarations";
 
     big = 0FFFFH;

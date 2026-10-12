@@ -1,0 +1,8 @@
+# --align takes keep or drop; anything else is a usage error (exit 2).
+program Opp
+arg --align
+arg left
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: --align takes keep or drop

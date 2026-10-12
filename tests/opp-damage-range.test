@@ -22,6 +22,8 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       Start a module's declarations at column 1; its statements stay indented.
   --case-bar <arg>
       A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).
+  --align <arg>
+      The spaces an author lines things up with: keep them while the line fits (keep, the default), or make each one space (drop).
   --in-place
       Replace each file with its formatted text.
   -c, --check

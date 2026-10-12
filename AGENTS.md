@@ -86,8 +86,8 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - **`opp.1` is the manual.** Keep it, `README.md` and the usage in
   `Opp.Mod` in step when an option changes.
 - Where authors' styles differ, opp keeps what the author wrote by default
-  and offers options to force it either way (as `--case-bar`; PLAN.md,
-  "Decisions").
+  and offers options to force it either way (as `--case-bar` and
+  `--align`; PLAN.md, "Decisions").
 - A change is checked with `make test`, `make -f pocGNUmakefile test-poc`
   and `make corpus` before it is committed.
 

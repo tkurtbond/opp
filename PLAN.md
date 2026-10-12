@@ -41,6 +41,7 @@ it writes each formatted file to standard output in turn, unless
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--align WHAT` | the spaces an author lines things up with: `keep` them while the line fits (default), or `drop` them to one space |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
@@ -101,7 +102,9 @@ past the module's closing period. Each token has its kind, its exact text
 - `blankBefore`: a blank line separates it from what came before it;
 - `lead`: the comments on lines of their own before it;
 - `trail`: the comments after it on the same line, each noting whether a
-  line break follows it.
+  line break follows it;
+- `gap`: the columns between it and what ends before it on its line (a
+  token or a comment), or 0 at the start of a line; a comment has one too.
 
 A comment that begins on the same line as the token before it is a
 trailing comment of that token; any other comment leads the next token.
@@ -137,6 +140,7 @@ what follows a group [3]; "References" below has the sources:
 | `TrailBreak` | (a trailing comment's line break) | a line break; breaks its group only if something follows it there |
 | `SoftBreak f` | nothing | a line break if the first item of the fill `f` after it does not fit, and the break moves it left |
 | `Choice`, `ChoiceLine` | spaces | line breaks; the parser decides each choice before rendering |
+| `Widen n` | after one space on the line, that space made `n` wide if the line still fits | |
 
 - A group is laid out flat when it, and what follows it up to the next
   possible line break, fits in the rest of the line. A comment that ends
@@ -158,6 +162,11 @@ what follows a group [3]; "References" below has the sources:
   have no indentation.
 - A multi-line comment's later lines move by as many columns as its first
   line moved, never left of column 1.
+- `Widen` keeps an author's alignment. No layout decision counts it, so
+  whether a line breaks never depends on it, and formatting stays
+  idempotent. The renderer widens the space only if the rest of the line,
+  up to its next possible break and counting a trailing comment (the usual
+  point of the alignment), still fits.
 - The renderer writes into an `OppText.Buffer`.
 - The stack is a linked list of frames, each holding an indentation, a
   mode and a chain of sibling nodes, so no array limits the depth of
@@ -365,6 +374,14 @@ characters, comments' text, the export marks, a trailing `;` before `END`
 arm (see `--case-bar`). Empty statements elsewhere and empty `CASE` arms
 are dropped (their comments are kept).
 
+**Alignment kept as written:** where two tokens, or a token and its
+trailing comment, stay next to each other on a line and the source has
+more than one space between them, opp keeps that many columns while the
+line still fits; otherwise, and with `--align drop`, one space. So voc's
+`| "#":      s := neq` and columns of `CONST` values and trailing comments
+survive. opp does not line columns up itself, and a column the author lined
+up stays lined up only while every line of it keeps its gaps and its start.
+
 ## Decisions
 
 - **Written in Oberon-2, built with both voc and poc**, like `Ropes` and
@@ -400,6 +417,10 @@ are dropped (their comments are kept).
   `--case-bar add` and `drop` to make every `CASE` alike** (2026-10-12,
   with the user). In general, where authors' styles differ, opp keeps what
   the author wrote and offers options to force either way.
+- **An author's tabular alignment is kept by default, with `--align
+  drop` to make every gap one space** (2026-10-12, with the user). A gap
+  is kept only while its line fits, and layout ignores it. `--align add`,
+  opp lining up columns itself, is not done (see "Later").
 - **A man page, `opp.1`**, installed to `MANDIR` (default
   `~/local/share/man/man1`) by both makefiles' `install`.
 - **`--damage N`** is in the usage, as ArgParser lists every option: it
@@ -408,8 +429,7 @@ are dropped (their comments are kept).
 
 ## Open questions
 
-- Whether opp should keep the tabular alignment voc's sources use (see
-  "Later"), and with which options.
+- Whether to offer `--align add` (see "Later").
 
 ## Phases
 
@@ -590,14 +610,22 @@ Done (2026-10-12):
   and `drop` too: 676 files, 15 configurations, all pass.
 - `opp.1`, the man page, and `install`/`uninstall` of it in both
   makefiles; `README.md` brought up to date.
+- `--align keep|drop`: an author's tabular alignment kept while it fits
+  (the scanner's `gap`, OppDoc's `Widen`); `make corpus` runs `--align
+  drop` too: 18 configurations.
 
 ### Later
 
 - Breaking after `:=` when the right side cannot break well, for the
   assignments that still overflow at narrow widths.
-- Keeping tabular alignment as voc's sources use it (`| "#":      s :=
-  neq`, columns of `CONST` values), which opp now collapses to single
-  spaces: probably as a `keep as written` default, like `--case-bar`.
+- `--align add`: opp lining columns up itself, such as trailing comments
+  in a run of lines, the `=` and `:` of consecutive declarations, and
+  `CASE` bodies. `--align keep` (the default) and `drop` are done.
+- A kept gap moves right whatever is aligned to a column after it (a
+  continued expression, a comment's later lines), and the check that the
+  gap fits measures only up to the line's next possible break, so a long
+  comment or string on a later line can overflow where it would not with
+  `--align drop` (4 lines in the corpus at `-p -w 80`; no code line).
 - Formatting a range of lines, for editor integration.
 - Building and running opp on VAX/VMS once poc's VMS backend can.
 

@@ -35,7 +35,8 @@ VAR
   opts: OppFormat.Options;
   inPlace, check, tokens: BOOLEAN;
   damage: LONGINT;
-  caseBarOK: BOOLEAN; (* --case-bar's value was one it takes *)
+  caseBarOK, alignOK: BOOLEAN; (* --case-bar's and --align's values were
+                                   ones they take *)
   status: INTEGER; (* the exit status so far *)
   files, lastFile: FileName;
   input: OppText.Buffer;
@@ -75,6 +76,15 @@ BEGIN
   END;
   RETURN TRUE
 END SetCaseBar;
+
+PROCEDURE SetAlign(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF val = "keep" THEN opts.align := OppFormat.keepAlign
+  ELSIF val = "drop" THEN opts.align := OppFormat.dropAlign
+  ELSE alignOK := FALSE
+  END;
+  RETURN TRUE
+END SetAlign;
 
 PROCEDURE SetNoModuleIndent(): BOOLEAN;
 BEGIN
@@ -409,7 +419,8 @@ END FormatFile;
 BEGIN
   opts.width := 80; opts.indent := 2; opts.mode := OppFormat.onePerLine;
   opts.moduleIndent := TRUE; opts.caseBar := OppFormat.keepBar;
-  caseBarOK := TRUE; inPlace := FALSE; check := FALSE; tokens := FALSE;
+  opts.align := OppFormat.keepAlign; caseBarOK := TRUE; alignOK := TRUE;
+  inPlace := FALSE; check := FALSE; tokens := FALSE;
   damage := noDamage;
   status := 0;
   files := NIL; lastFile := NIL;
@@ -446,6 +457,10 @@ BEGIN
                                  "A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).",
                                  SetCaseBar));
   parser.AddOption(
+      ArgParser.MakeStringOption(0X, "align",
+                                 "The spaces an author lines things up with: keep them while the line fits (keep, the default), or make each one space (drop).",
+                                 SetAlign));
+  parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",
                            "Replace each file with its formatted text.",
                            SetInPlace));
@@ -470,6 +485,7 @@ BEGIN
     IF AddFile(0, stdin) THEN END
   END;
   IF ~caseBarOK THEN UsageError("--case-bar takes keep, add or drop") END;
+  IF ~alignOK THEN UsageError("--align takes keep or drop") END;
   IF inPlace & check THEN
     UsageError("--in-place and --check cannot be used together")
   END;

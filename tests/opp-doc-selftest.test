@@ -67,4 +67,11 @@ ok - a comment of one line does not break its group
 ok - a trailing comment does not break the code before it
 ok - a fill puts an item with a trailing comment on the next line if the comment does not fit
 ok - a comment before code on the line is counted
-64/64 tests passed.
+ok - a widened space is kept when the line fits
+ok - a widened space is one space when the line would not fit
+ok - a trailing comment counts in whether a widened space fits
+ok - a widening is measured only up to the next possible break
+ok - a widening does not change whether a group breaks
+ok - a widening after a line break is ignored
+ok - a widening with no space before it is ignored
+71/71 tests passed.

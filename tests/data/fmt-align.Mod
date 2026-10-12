@@ -1,0 +1,34 @@
+MODULE Align;   (* columns an author lines up *)
+
+CONST
+  null   = 0;  times  = 1;  slash = 2;
+  plus   = 6;  minus  = 7;  eql   = 9;
+  maxIdentLen = 32;    (* the longest identifier *)
+  maxStrLen   = 256;   (* the longest string *)
+
+TYPE
+  Item = RECORD
+    kind:   INTEGER;     (* what the item is *)
+    value:  LONGINT;     (* its value, if a constant *)
+    next:   POINTER TO Item
+  END;
+
+VAR
+  count:     INTEGER;  (* items seen *)
+  total:     LONGINT;  (* their sum, which can be much longer than anything the line can hold *)
+
+PROCEDURE Sym(ch: CHAR): INTEGER;
+  VAR s: INTEGER;
+BEGIN
+  CASE ch OF
+  | "*":   s := times
+  | "/":   s := slash
+  | "+":   s := plus
+  | "-":   s := minus
+  ELSE     s := null
+  END;
+  count := count   + 1;
+  RETURN s
+END Sym;
+
+END Align.

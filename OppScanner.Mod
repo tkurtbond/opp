@@ -8,7 +8,9 @@ MODULE OppScanner;
    comments around it. A comment that begins on the line of the token
    before it is a trailing comment of that token (Token.trail); any other
    comment leads the next token (Token.lead). A comment notes whether a
-   blank line comes before it and whether a line break follows it.
+   blank line comes before it and whether a line break follows it. Tokens
+   and comments note the columns between them and what ends before them on
+   their line (gap), the spaces an author may have lined things up with.
 
    The parser pulls tokens one at a time (Next), with one token of
    lookahead (Peek), so the scanner never reads past what the parser asks
@@ -61,6 +63,8 @@ TYPE
     blankBefore*: BOOLEAN; (* a blank line separates it from what precedes it *)
     newlineAfter*: BOOLEAN; (* a line break (or the end of the text) follows it *)
     multiLine*: BOOLEAN; (* its text holds a line break *)
+    gap*: LONGINT; (* the columns between it and the token or comment before
+                      it on its line, or 0 if it starts its line *)
     next*: Comment
   END;
 
@@ -72,6 +76,7 @@ TYPE
     endLine*: LONGINT; (* the line it ends on *)
     start*, end*: LONGINT; (* its text is src[start .. end - 1] *)
     blankBefore*: BOOLEAN; (* a blank line separates it from what precedes it *)
+    gap*: LONGINT; (* as Comment.gap *)
     lead*: Comment; (* comments on lines of their own before it *)
     trail*: Comment; (* comments after it on its own line *)
     next: Token (* the lookahead token, in Scanner.ahead *)
@@ -84,6 +89,8 @@ TYPE
     line, column: LONGINT;
     prev: Token; (* the last token scanned *)
     lastComment: Comment; (* the last comment scanned since prev *)
+    itemLine, itemColumn: LONGINT; (* where the last token or comment ended;
+                                      line 0 before the first *)
     ahead: Token; (* a token Peek scanned, which Next returns next *)
     error*: BOOLEAN;
     errorLine*, errorColumn*: LONGINT;
@@ -163,10 +170,20 @@ PROCEDURE New*(src: OppText.Text; len: LONGINT): Scanner;
 BEGIN
   NEW(s);
   s.src := src; s.len := len; s.pos := 0; s.line := 1; s.column := 1;
+  s.itemLine := 0; s.itemColumn := 0;
   s.prev := NIL; s.lastComment := NIL; s.ahead := NIL;
   s.error := FALSE; s.errorLine := 0; s.errorColumn := 0; s.errorMessage := "";
   RETURN s
 END New;
+
+(* The gap before a token or comment that starts at line and column: the
+   columns since the last token or comment ended, if it ended on that line,
+   and otherwise 0. *)
+PROCEDURE Gap(s: Scanner; line, column: LONGINT): LONGINT;
+BEGIN
+  IF s.itemLine = line THEN RETURN column - s.itemColumn END;
+  RETURN 0
+END Gap;
 
 (* The comment that starts here, nested comments included. *)
 PROCEDURE ScanComment(s: Scanner): Comment;
@@ -376,7 +393,8 @@ BEGIN
     ELSIF (ch = " ") OR (ch = 9X) OR (ch = 0DX) OR (ch = 0CX) THEN
       Advance(s)
     ELSIF (ch = "(") & (PeekCh(s, 1) = "*") THEN
-      c := ScanComment(s);
+      c := ScanComment(s); c.gap := Gap(s, c.line, c.column);
+      s.itemLine := s.line; s.itemColumn := s.column;
       c.blankBefore := (newlines >= 2)
           & ((s.prev # NIL) OR (s.lastComment # NIL) OR (leadTail # NIL));
       IF (s.prev # NIL) & ~sinceToken THEN
@@ -399,6 +417,7 @@ BEGIN
   END;
   t.blankBefore := (newlines >= 2) & ((s.prev # NIL) OR (leadTail # NIL));
   t.line := s.line; t.column := s.column; t.start := s.pos;
+  t.gap := Gap(s, t.line, t.column);
   ch := Ch(s);
   IF s.pos >= s.len THEN
     t.kind := eof; t.text := OppText.New("")
@@ -408,6 +427,7 @@ BEGIN
   ELSE ScanSymbol(s, t)
   END;
   t.end := s.pos; t.endLine := s.line;
+  s.itemLine := s.line; s.itemColumn := s.column;
   s.prev := t; s.lastComment := NIL;
   RETURN t
 END Scan;

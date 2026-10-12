@@ -376,9 +376,39 @@ BEGIN
         12, "x :=|(* long comment *) 1;|")
 END Comments;
 
+(* An author's alignment, kept while it fits. *)
+PROCEDURE Widths;
+BEGIN
+  Check("a widened space is kept when the line fits",
+        D.Cat(D.Cat3(Tx("a"), D.Space(), D.Widen(4)), Tx("bb")), 80,
+        "a    bb|");
+  Check("a widened space is one space when the line would not fit",
+        D.Cat(D.Cat3(Tx("a"), D.Space(), D.Widen(4)), Tx("bb")), 6, "a bb|");
+  Check("a trailing comment counts in whether a widened space fits",
+        D.Cat3(D.Cat(Tx("x;"), D.Space()), D.Widen(3),
+               D.Comment(T("(* c *)"), 1)),
+        11, "x; (* c *)|");
+  Check("a widening is measured only up to the next possible break",
+        D.Group(
+            D.Cat(D.Cat3(Tx("a"), D.Space(), D.Widen(3)),
+                  D.Cat3(Tx("b"), D.Line(), Tx("cccc")))),
+        6, "a   b|cccc|");
+  Check("a widening does not change whether a group breaks",
+        D.Group(D.Cat3(Tx("aa"), D.Line(), D.Cat(D.Widen(5), Tx("bb")))), 5,
+        "aa bb|");
+  Check("a widening after a line break is ignored",
+        D.Group(
+            D.Cat3(Tx("aaa"), D.Line(),
+                   D.Cat3(D.Space(), D.Widen(4), Tx("b")))),
+        4, "aaa|b|");
+  Check("a widening with no space before it is ignored",
+        D.Cat3(Tx("a"), D.Widen(4), Tx("b")), 80, "ab|")
+END Widths;
+
 BEGIN
   passed := 0; total := 0;
   Basics; Indentation; Groups; LineBreaks; Fills; Choices; Comments;
+  Widths;
   Out.Int(passed, 0); Out.Char("/"); Out.Int(total, 0);
   Out.String(" tests passed."); Out.Ln;
   Out.Flush;

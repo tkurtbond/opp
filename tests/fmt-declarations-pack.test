@@ -9,7 +9,7 @@ MODULE Declarations; (* modules, imports, declaration sections, types *)
   IMPORT Out, D := Diagnostics, Strings, Files, Texts, Oberon, SYSTEM, Platform,
       Args;
   CONST
-    one = 1; two = one + 1; (* trailing comment *)
+    one = 1; two = one + 1;   (* trailing comment *)
     name* = "declarations";
 
     big = 0FFFFH; ch = 41X; pi = 3.14159D0;

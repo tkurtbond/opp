@@ -82,6 +82,15 @@ or
 .B drop
 it.
 .TP
+.BI \-\-align " what"
+What to do with the spaces an author lines things up with, such as
+columns of constants, or of trailing comments:
+.B keep
+them (the default), while the line still fits, or
+.B drop
+them, making each one space.
+opp does not line columns up itself.
+.TP
 .B \-\-in\-place
 Replace each file with its formatted text.
 A file that is already formatted is not written.

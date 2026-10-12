@@ -31,6 +31,8 @@ CONST
   onePerLine* = 0; pack* = 1; keepLines* = 2;
   (* what to do with a bar before a CASE's first arm *)
   keepBar* = 0; addBar* = 1; dropBar* = 2;
+  (* what to do with the spaces an author lined things up with *)
+  keepAlign* = 0; dropAlign* = 1;
 
   (* what a list holds, for Element *)
   exprs = 0; braceElements = 1; caseLabels = 2;
@@ -40,7 +42,8 @@ TYPE
     width*, indent*: LONGINT;
     mode*: INTEGER;
     moduleIndent*: BOOLEAN;
-    caseBar*: INTEGER (* keepBar, addBar or dropBar *)
+    caseBar*: INTEGER; (* keepBar, addBar or dropBar *)
+    align*: INTEGER (* keepAlign or dropAlign *)
   END;
 
   Parser = POINTER TO ParserDesc;
@@ -50,7 +53,7 @@ TYPE
     last: S.Token; (* the token before it *)
     eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
-    caseBar: INTEGER;
+    caseBar, align: INTEGER;
     ind: LONGINT; (* the indentation step *)
     cont: LONGINT; (* the indentation of a continued line *)
     limit: LONGINT; (* the last column to align a list to *)
@@ -163,6 +166,14 @@ END LeadDoc;
 (* The current token with its comments, which it consumes. item says that
    it starts a statement, declaration or other item, where a blank line
    before it is kept. *)
+(* The spaces of a gap of n columns in the source, kept as the author's
+   alignment unless --align drop. *)
+PROCEDURE Gap(p: Parser; n: LONGINT): D.Doc;
+BEGIN
+  IF (p.align = keepAlign) & (n > 1) THEN RETURN D.Widen(n) END;
+  RETURN NIL
+END Gap;
+
 PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
   VAR t: S.Token; d: D.Doc; c: S.Comment;
 BEGIN
@@ -175,10 +186,12 @@ BEGIN
   ELSIF t.lead # NIL THEN
     d := D.Cat(d, D.HardLine())
   END;
+  d := D.Cat(d, Gap(p, t.gap));
   d := D.Cat(d, D.TextOf(t.text));
   c := t.trail;
   WHILE c # NIL DO
-    d := D.Cat3(d, D.Space(), D.Comment(c.text, c.column));
+    d := D.Cat3(d, D.Space(), Gap(p, c.gap));
+    d := D.Cat(d, D.Comment(c.text, c.column));
     IF c.newlineAfter THEN d := D.Cat(d, D.TrailBreak()) END;
     c := c.next
   END;
@@ -1150,7 +1163,8 @@ BEGIN
   p.s := S.New(src, len);
   NEW(p.eofTok); p.eofTok.kind := S.eof; p.eofTok.text := OppText.New("");
   p.eofTok.lead := NIL; p.eofTok.trail := NIL;
-  p.mode := opts.mode; p.caseBar := opts.caseBar; p.ind := opts.indent;
+  p.mode := opts.mode; p.caseBar := opts.caseBar; p.align := opts.align;
+  p.ind := opts.indent;
   p.cont := 2 * opts.indent;
   p.limit := opts.width * 2 DIV 3;
   p.error := FALSE; p.last := NIL;

@@ -33,7 +33,7 @@ CONST
   text = 0; space = 1; line = 2; softLine = 3; hardLine = 4; blankLine = 5;
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
-  trailBreak = 16; softBreak = 17; keptLine = 18;
+  trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -187,6 +187,17 @@ BEGIN
   d := NewNode(choiceLine); d.ref := c;
   RETURN d
 END ChoiceLine;
+
+(* Nothing, or, after a space on the same line, that space widened to n
+   columns if what follows still fits on the line up to its next possible
+   break: an author's alignment kept. Layout decisions ignore it, so that
+   whether a line breaks never depends on it. *)
+PROCEDURE Widen*(n: LONGINT): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(widen); d.n := n;
+  RETURN d
+END Widen;
 
 (* A ChoiceLine(c) while c is soft; once c is decided hard, a line break
    only if what follows it does not fit on the line, as Group(Line()): the
@@ -450,7 +461,7 @@ BEGIN
         IF d.hard THEN Push(local, ind, broken, d.child, TRUE)
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
-    | mark, choice, softBreak:
+    | mark, choice, softBreak, widen:
     END
   END
 END Fits;
@@ -611,6 +622,12 @@ BEGIN
           INC(r.pendingSpaces)
         ELSE
           NewLine(r, ind, 1)
+        END
+    | widen: (* a trailing comment counts here, as it is the alignment's
+                 point; spaces pending before a line break are never written *)
+        IF (r.pendingSpaces = 1) & (x.n > 1)
+            & Fits(nothing, stack, width - Column(r) - (x.n - 1), TRUE) THEN
+          r.pendingSpaces := x.n
         END
     | keptLine:
         IF x.ref.n = 0 THEN
