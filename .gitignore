@@ -13,3 +13,4 @@
 /poc-build/
 /OppDocTest
 !/tools/*.c
+__pycache__/
