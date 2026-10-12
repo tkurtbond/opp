@@ -29,9 +29,7 @@ MODULE PocExtensions;
 
   PROCEDURE Show(s-: ARRAY OF CHAR;
                  p-: Point);
-  BEGIN
-    ASSERT(s[0] # 0X, 20)
-  END Show;
+  BEGIN ASSERT(s[0] # 0X, 20) END Show;
 
   CONST late = 2;
   VAR p: Point;

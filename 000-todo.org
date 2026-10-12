@@ -5,4 +5,4 @@ Search for the config file in the current directory and in ~/.config/opp/.
 Constants lined up in columns, types have their equal signs lined up,
 field and variable declaration have their types lined up, initializers
 have their := lined up, trailing comments, and so forth.  These should be individually turned on and off: perhaps something like "--align const,type,nofield,novar,init,comment" where specifiers without "no" turn on that type of alignment and specifiers with no don't turn on that type of alignment.
-* TODO There should be an option to force/allow/disallow cuddling a line up right after BEGIN, and another option for cuddling END up on such a line.
+* DONE There should be an option to force/allow/disallow cuddling a line up right after BEGIN, and another option for cuddling END up on such a line.

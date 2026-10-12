@@ -42,6 +42,8 @@ it writes each formatted file to standard output in turn, unless
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--cuddle-begin WHAT` | a body's first statement on `BEGIN`'s line (`BEGIN RETURN x`): `allow` it where the source has it (default), `force` it, or `disallow` it; only when all of that statement fits |
+| `--cuddle-end WHAT` | `END` on that line too, when the whole body is on it (`BEGIN RETURN x END Get;`): `allow` (default), `force` or `disallow`, likewise; only when all of it fits |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
 | `--output-dir DIR` | write each file's formatted text to `DIR/` under the file's own name; `DIR` must exist |
@@ -318,7 +320,17 @@ nested `2s`, as in `PROCEDURE ^ Forward(` then `    x: INTEGER): INTEGER;`.
 A code procedure's text moves to the next line, nested `2s`, when it does
 not fit. The
 procedure's declarations are nested `s`; `BEGIN` and `END Name;` are at the
-procedure's column; its statements are nested `s`. Forward declarations
+procedure's column; its statements are nested `s`. A procedure's or
+module's first statement goes on `BEGIN`'s line (`BEGIN RETURN x`, or
+Wirth's `BEGIN x := 1;` with the rest below) as `--cuddle-begin` says:
+where the source has it there (`allow`, the default, in every mode),
+always (`force`), or never (`disallow`); and only when all of that
+statement fits there, so never a statement broken over lines. `END` goes on
+that line too (`BEGIN RETURN x END Get;`) as `--cuddle-end` says, likewise,
+when the whole of `BEGIN ... END Name` fits on one line; otherwise it has
+a line of its own. (A `KeptLineItem` measures the body's first statement
+flat; a group around the body, a line, and `END Name` puts `END` on the
+line.) Forward declarations
 print as `PROCEDURE ^ Name(...);`, with a space after the `^` as poc
 writes it, so the mark that makes it a forward declaration stands out;
 external ones as
@@ -388,8 +400,8 @@ stays on one line if it fits, and is broken as shown above if it does not;
 one the author broke stays broken, but a body the author wrote on its
 keyword's line (`IF a THEN x := 1` then `ELSE x := 2` then `END`) stays
 there while it fits; so does a `CASE` arm's, and one the author put on the
-next line stays there, as does a body on `BEGIN`'s line
-(`BEGIN RETURN x`). Declarations follow the same rule (a section's one
+next line stays there (and see `--cuddle-begin` for a body on `BEGIN`'s
+line). Declarations follow the same rule (a section's one
 declaration goes on the keyword's line only if the author put it there),
 and comments before a declaration or statement do not stop the ones after
 it sharing its line. This
@@ -490,6 +502,12 @@ that would make too long a line is not lined up.
   scripts point `XDG_CONFIG_HOME` at a directory that does not exist, and
   `make format` and `make corpus` pass `--no-config`, so a user's config
   never changes them.
+- **`--cuddle-begin` and `--cuddle-end`, `force`, `allow` or `disallow`**
+  (2026-10-12, with the user, from `000-todo.org`): `allow`, the default,
+  keeps the author's cuddling in every mode, so `-1` and `-p` no longer
+  break `BEGIN RETURN x` that the source wrote so (before, only `-k` kept
+  it). A first statement goes on `BEGIN`'s line only when all of it fits
+  there.
 - **Extra spaces never change where lines break**: layout ignores them,
   and a line they would make too long loses them, unless it is too long
   without them.
@@ -691,6 +709,10 @@ Done (2026-10-12):
 - Config files, `~/.config/opp/opp.conf` and `./.opp.conf`, with
   `--config`, `--no-config` and `--module-indent`.
 - `--output-dir DIR`; `tests/in-place.sh` checks it too.
+- `--cuddle-begin` and `--cuddle-end`. `Fits` counts a kept line in a
+  flat group as a space, which changed no existing output (checked over
+  the corpus in four configurations); `make corpus` runs `-p` with both
+  `force`: 27 configurations.
 
 ### Later
 

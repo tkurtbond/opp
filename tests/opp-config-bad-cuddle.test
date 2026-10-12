@@ -1,0 +1,8 @@
+# A config file with a value --cuddle-end does not take.
+program Opp
+arg --config
+arg tests/data/config/bad-cuddle.conf
+arg tests/data/fmt-cuddle.Mod
+status 2
+output
+opp: tests/data/config/bad-cuddle.conf:1: --cuddle-end does not take sometimes

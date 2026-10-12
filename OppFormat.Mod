@@ -31,6 +31,8 @@ CONST
   onePerLine* = 0; pack* = 1; keepLines* = 2;
   (* what to do with a bar before a CASE's first arm *)
   keepBar* = 0; addBar* = 1; dropBar* = 2;
+  (* whether a body's first line goes on BEGIN's line, and END on it too *)
+  cuddleAllow* = 0; cuddleForce* = 1; cuddleDisallow* = 2;
   (* what to do with the spaces an author lined things up with *)
   keepAlign* = 0; dropAlign* = 1;
   (* what --align can line up: the = of constants and of types, the types
@@ -48,6 +50,8 @@ TYPE
     mode*: INTEGER;
     moduleIndent*: BOOLEAN;
     caseBar*: INTEGER; (* keepBar, addBar or dropBar *)
+    cuddleBegin*, cuddleEnd*: INTEGER; (* cuddleAllow, cuddleForce or
+                                          cuddleDisallow *)
     align*: INTEGER; (* keepAlign or dropAlign, for the spaces of what
                         lineUp and single do not hold *)
     lineUp*, single*: SET (* what opp lines up, and what it gives one
@@ -62,6 +66,7 @@ TYPE
     eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
     caseBar, align: INTEGER;
+    cuddleBegin, cuddleEnd: INTEGER;
     lineUp, single: SET;
     nextKind: INTEGER; (* what the space before the next token taken
                           lines up, or -1 *)
@@ -1031,18 +1036,53 @@ BEGIN
   RETURN D.Cat(pre, d)
 END Section;
 
-(* The line break after BEGIN, at the first token of the body: with
-   --keep-lines, one taken only if the body's first statement does not fit
-   on BEGIN's line when the source has it there, as BEGIN RETURN x. *)
-PROCEDURE BeginBreak(p: Parser): D.Doc;
+(* The line break after BEGIN, at the first token of the body. cuddled
+   says whether the body's first line goes on BEGIN's line, as BEGIN
+   RETURN x, as --cuddle-begin says: always, where the source has it there,
+   or never; then the break is taken unless the first statement, all on
+   one line, fits there. *)
+PROCEDURE BeginBreak(p: Parser; VAR cuddled: BOOLEAN): D.Doc;
   VAR c: D.Doc;
 BEGIN
-  IF (p.mode = keepLines) & (p.tok.line = p.last.endLine) THEN
+  cuddled := (p.cuddleBegin = cuddleForce)
+      OR (p.cuddleBegin = cuddleAllow) & (p.tok.line = p.last.endLine);
+  IF cuddled THEN
     c := D.NewChoice(); D.Decide(c, TRUE);
-    RETURN D.KeptLine(c)
+    RETURN D.KeptLineItem(c)
   END;
   RETURN D.HardLine()
 END BeginBreak;
+
+(* [BEGIN StatementSeq] END ident, after d: the body nested on the lines
+   after BEGIN, or starting on BEGIN's line (BeginBreak); then END on a
+   line of its own, or, as --cuddle-end says, on the body's line when the
+   whole of BEGIN ... END ident fits on one. Without BEGIN, the comments
+   before END are nested n. *)
+PROCEDURE Block(p: Parser; d: D.Doc; n: LONGINT): D.Doc;
+  VAR br, body, e: D.Doc; cuddled: BOOLEAN;
+BEGIN
+  IF Is(p, S.begin) THEN
+    d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
+    br := BeginBreak(p, cuddled);
+    body := BodySeq(p);
+    IF body # NIL THEN
+      body := D.Nest(p.ind, D.Cat(br, body));
+      IF cuddled & Is(p, S.end)
+          & ((p.cuddleEnd = cuddleForce)
+                 OR (p.cuddleEnd = cuddleAllow)
+                     & (p.tok.line = p.last.endLine)) THEN
+        e := ExpectItem(p, S.end);
+        e := D.Cat3(e, D.Space(), Expect(p, S.ident));
+        RETURN D.Cat(d, D.Group(D.Cat3(body, D.Line(), e)))
+      END;
+      d := D.Cat(d, body)
+    END
+  ELSE
+    d := D.Cat(d, D.Nest(n, TakeLead(p)))
+  END;
+  d := D.Cat3(d, D.HardLine(), ExpectItem(p, S.end));
+  RETURN D.Cat3(d, D.Space(), Expect(p, S.ident))
+END Block;
 
 (* [ident ":"] ident, a type-bound procedure's receiver, after VAR *)
 PROCEDURE Receiver(p: Parser): D.Doc;
@@ -1123,18 +1163,7 @@ BEGIN
   IF decls # NIL THEN
     d := D.Cat(d, D.Nest(p.ind, D.Cat(D.HardLine(), decls)))
   END;
-  IF Is(p, S.begin) THEN
-    d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
-    br := BeginBreak(p);
-    body := BodySeq(p);
-    IF body # NIL THEN
-      d := D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))
-    END
-  ELSE
-    d := D.Cat(d, D.Nest(p.ind, TakeLead(p)))
-  END;
-  d := D.Cat3(d, D.HardLine(), ExpectItem(p, S.end));
-  RETURN D.Cat3(d, D.Space(), Expect(p, S.ident))
+  RETURN Block(p, d, p.ind)
 END ProcedureDecl;
 
 (* {CONST ... | TYPE ... | VAR ... | ProcedureDecl ";"}, in any order, as
@@ -1201,18 +1230,7 @@ BEGIN
   END;
   IF moduleIndent THEN n := p.ind ELSE n := 0 END;
   IF inner # NIL THEN d := D.Cat(d, D.Nest(n, D.Cat(D.HardLine(), inner))) END;
-  IF Is(p, S.begin) THEN
-    d := D.Cat3(d, D.HardLine(), TokItem(p, TRUE));
-    br := BeginBreak(p);
-    body := BodySeq(p);
-    IF body # NIL THEN
-      d := D.Cat(d, D.Nest(p.ind, D.Cat(br, body)))
-    END
-  ELSE
-    d := D.Cat(d, D.Nest(n, TakeLead(p)))
-  END;
-  d := D.Cat3(d, D.HardLine(), ExpectItem(p, S.end));
-  d := D.Cat3(d, D.Space(), Expect(p, S.ident));
+  d := Block(p, d, n);
   IF ~Is(p, S.period) THEN ExpectedKind(p, S.period); RETURN d END;
   (* the period, without scanning past it *)
   d := D.Cat(d, LeadDoc(p.tok.lead));
@@ -1232,6 +1250,7 @@ BEGIN
   NEW(p.eofTok); p.eofTok.kind := S.eof; p.eofTok.text := OppText.New("");
   p.eofTok.lead := NIL; p.eofTok.trail := NIL;
   p.mode := opts.mode; p.caseBar := opts.caseBar; p.align := opts.align;
+  p.cuddleBegin := opts.cuddleBegin; p.cuddleEnd := opts.cuddleEnd;
   p.lineUp := opts.lineUp; p.single := opts.single; p.nextKind := -1;
   p.nextRun := NIL; p.comments := D.NewRun(TRUE);
   p.ind := opts.indent;

@@ -1,0 +1,8 @@
+# --cuddle-begin and --cuddle-end take allow, force or disallow.
+program Opp
+arg --cuddle-begin
+arg always
+arg tests/data/fmt-cuddle.Mod
+status 2
+output
+opp: --cuddle-begin and --cuddle-end take allow, force or disallow

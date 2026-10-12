@@ -426,6 +426,32 @@ BEGIN
                 D.Comment(T("(* c *)"), 1), br)
 END Commented;
 
+(* "BEGIN", a KeptLineItem, and a fill of one item: first, and a line
+   break and second in it if broken. *)
+PROCEDURE BeginItem(first, second: ARRAY OF CHAR; broken: BOOLEAN): D.Doc;
+  VAR c, it: D.Doc; f: D.FillBuilder;
+BEGIN
+  c := D.NewChoice(); D.Decide(c, TRUE);
+  it := Tx(first);
+  IF broken THEN it := D.Cat3(it, D.HardLine(), Tx(second)) END;
+  D.InitFill(f); D.Add(f, it);
+  RETURN D.Cat(Tx("BEGIN"), D.Nest(2, D.Cat(D.KeptLineItem(c), D.Fill(f))))
+END BeginItem;
+
+(* "BEGIN", a KeptLineItem, and a fill of one item: IF a THEN b END, its
+   lines a hard choice's, its condition a group that could break. *)
+PROCEDURE BeginChoice(): D.Doc;
+  VAR c, h, it: D.Doc; f: D.FillBuilder;
+BEGIN
+  c := D.NewChoice(); D.Decide(c, TRUE);
+  h := D.NewChoice(); D.Decide(h, TRUE);
+  it := D.Cat3(Tx("IF"), D.Group(D.Cat3(Tx(" a"), D.Line(), Tx("THEN"))),
+               D.Nest(2, D.Cat(D.ChoiceLine(h), Tx("b"))));
+  it := D.Cat3(it, D.ChoiceLine(h), Tx("END"));
+  D.InitFill(f); D.Add(f, D.Group(it));
+  RETURN D.Cat(Tx("BEGIN"), D.Nest(2, D.Cat(D.KeptLineItem(c), D.Fill(f))))
+END BeginChoice;
+
 (* What opp lines up itself. *)
 PROCEDURE Pads;
   VAR run, d: D.Doc;
@@ -467,10 +493,23 @@ BEGIN
         6, "a   bb|    cc|")
 END Pads;
 
+(* The line after BEGIN. *)
+PROCEDURE Begins;
+BEGIN
+  Check("a first statement that fits goes on BEGIN's line",
+        BeginItem("x := 1", "", FALSE), 20, "BEGIN x := 1|");
+  Check("a first statement that does not fit goes on the next line",
+        BeginItem("x := 1000000", "", FALSE), 12, "BEGIN|  x := 1000000|");
+  Check("a first statement of several lines goes on the next line",
+        BeginItem("IF a THEN", "END", TRUE), 80, "BEGIN|  IF a THEN|  END|");
+  Check("a first statement broken by its choice goes on the next line",
+        BeginChoice(), 80, "BEGIN|  IF a THEN|    b|  END|")
+END Begins;
+
 BEGIN
   passed := 0; total := 0;
   Basics; Indentation; Groups; LineBreaks; Fills; Choices; Comments;
-  Widths; Pads;
+  Widths; Pads; Begins;
   Out.Int(passed, 0); Out.Char("/"); Out.Int(total, 0);
   Out.String(" tests passed."); Out.Ln;
   Out.Flush;

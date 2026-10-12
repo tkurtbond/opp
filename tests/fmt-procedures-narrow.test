@@ -26,18 +26,15 @@ MODULE Procedures;
     VAR i: INTEGER;
     PROCEDURE Nested(
         k: INTEGER): INTEGER;
-    BEGIN
-      RETURN k * 2
+    BEGIN RETURN k * 2
     END Nested;
-  BEGIN
-    RETURN Nested(t.n)
+  BEGIN RETURN Nested(t.n)
   END Method;
 
   (* a comment before a procedure *)
   PROCEDURE Forward(
       x: INTEGER): INTEGER;
-  BEGIN
-    RETURN x
+  BEGIN RETURN x
   END Forward;
 
   PROCEDURE Another;
@@ -49,7 +46,6 @@ MODULE Procedures;
       secondParameter: LONGINT;
       VAR third: ARRAY OF CHAR;
       fourth, fifth: REAL): BOOLEAN;
-  BEGIN
-    RETURN TRUE
+  BEGIN RETURN TRUE
   END WithManyParameters;
 END Procedures.

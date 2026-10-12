@@ -87,6 +87,31 @@ or
 .B drop
 it.
 .TP
+.BI \-\-cuddle\-begin " what"
+Whether a procedure's or module's first statement goes on the line of its
+.BR BEGIN ,
+as
+.BR "BEGIN RETURN x" :
+.B allow
+it where the source has it there (the default),
+.B force
+it, or
+.B disallow
+it.
+It goes there only when all of the statement fits; the rest of the body
+follows on the lines below.
+.TP
+.BI \-\-cuddle\-end " what"
+Whether
+.B END
+goes on that line too, when the whole body is on it, as
+.BR "BEGIN RETURN x END Get" :
+.BR allow ,
+.B force
+or
+.BR disallow ,
+likewise, and only when all of it fits on the line.
+.TP
 .BI \-\-align " words"
 What to line up, as words separated by commas; a later word wins over an
 earlier one, and the option can be given more than once.

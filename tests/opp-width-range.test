@@ -23,6 +23,10 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       Indent a module's declarations (the default).
   --case-bar <arg>
       A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).
+  --cuddle-begin <arg>
+      A body's first line on BEGIN's line, as BEGIN RETURN x: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.
+  --cuddle-end <arg>
+      END on that line too, when the whole body is on it, as BEGIN RETURN x END Get: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.
   --align <arg>
       What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.
   --in-place

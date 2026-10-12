@@ -55,7 +55,9 @@ TYPE
                    comment: the column it started at in the
                    source; mark: the line it was printed on;
                    choice: 1 if its lines are hard, else 0 *)
-    limit: LONGINT; (* alignOrNest: the last column to align to *)
+    limit: LONGINT; (* alignOrNest: the last column to align to;
+                       keptLine: 1 if it measures the first item after
+                       it, else 0 *)
     multiLine: BOOLEAN; (* comment: its text holds a line break *)
     hard: BOOLEAN; (* group: it holds a hard break (Propagate) *)
     child: Doc; (* nest, align, alignOrNest, group: the content;
@@ -270,6 +272,15 @@ BEGIN
   d := NewNode(keptLine); d.ref := c;
   RETURN d
 END KeptLine;
+
+(* A KeptLine(c) before a fill, as after BEGIN: once c is hard, a line
+   break unless the fill's first item, all of it flat, fits on the line. *)
+PROCEDURE KeptLineItem*(c: Doc): Doc;
+  VAR d: Doc;
+BEGIN
+  d := KeptLine(c); d.limit := 1;
+  RETURN d
+END KeptLineItem;
 
 (* d, with its line breaks indented n more. *)
 PROCEDURE Nest*(n: LONGINT; d: Doc): Doc;
@@ -510,8 +521,8 @@ BEGIN
         IF (mode = flat) & (d.ref.n = 0) THEN DEC(rem)
         ELSE RETURN ~inFirst OR (local = NIL)
         END
-    | keptLine:
-        IF (mode = flat) & (d.ref.n = 0) THEN DEC(rem)
+    | keptLine: (* in a flat group, a space either way *)
+        IF mode = flat THEN DEC(rem)
         ELSIF d.ref.n = 1 THEN RETURN TRUE
         ELSE RETURN ~inFirst OR (local = NIL)
         END
@@ -526,6 +537,21 @@ BEGIN
     END
   END
 END Fits;
+
+(* Whether the chain from d holds a group that cannot be flat, or a hard
+   choice's line: what cannot be on one line. *)
+PROCEDURE HoldsHard(d: Doc): BOOLEAN;
+BEGIN
+  WHILE d # NIL DO
+    IF (d.kind = group) & d.hard OR (d.kind = choiceLine) & (d.ref.n = 1)
+        OR (d.kind IN {nest, align, alignOrNest, concat, group})
+            & HoldsHard(d.child) THEN
+      RETURN TRUE
+    END;
+    d := d.next
+  END;
+  RETURN FALSE
+END HoldsHard;
 
 (* Whether the fill d has an item that does not fit in aligned columns
    but does in nested columns, the last item measured with rest after it. *)
@@ -793,8 +819,24 @@ BEGIN
     | keptLine:
         IF x.ref.n = 0 THEN
           IF mode = flat THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
-        ELSIF (r.pendingBreaks = 0)
-            & Fits(nothing, stack, width - Column(r) - 1, FALSE) THEN
+        ELSIF r.pendingBreaks # 0 THEN
+          NewLine(r, ind, 1)
+        ELSIF x.limit = 1 THEN
+          (* the fill's first item, all on the line *)
+          item := nothing;
+          IF stack # NIL THEN
+            item := stack.doc;
+            IF (item.kind = concat) & (item.child # NIL) THEN
+              item := item.child
+            END
+          END;
+          IF ((item.kind # concat) OR ~HoldsHard(item.child))
+              & Fits(item, NIL, width - Column(r) - 1, FALSE) THEN
+            INC(r.pendingSpaces)
+          ELSE
+            NewLine(r, ind, 1)
+          END
+        ELSIF Fits(nothing, stack, width - Column(r) - 1, FALSE) THEN
           INC(r.pendingSpaces)
         ELSE
           NewLine(r, ind, 1)

@@ -1,0 +1,41 @@
+# --cuddle-begin force and --cuddle-end force: every body's first statement
+# on BEGIN's line, and END too, while it fits.
+program Opp
+arg --cuddle-begin
+arg force
+arg --cuddle-end
+arg force
+arg tests/data/fmt-cuddle.Mod
+status 0
+output
+MODULE Cuddle; (* bodies on BEGIN's line, and END on it too *)
+
+  VAR count: INTEGER;
+
+  PROCEDURE Get(): INTEGER;
+  BEGIN RETURN count END Get;
+
+  PROCEDURE Inc;
+  BEGIN INC(count) END Inc;
+
+  PROCEDURE Reset;
+  BEGIN count := 0 END Reset;
+
+  PROCEDURE Twice;
+  BEGIN Inc;
+    Inc
+  END Twice;
+
+  PROCEDURE Long(a, b, c: INTEGER): INTEGER;
+  BEGIN RETURN a * 1000 + b * 100 + c * 10 + count * count END Long;
+
+  PROCEDURE Check(x: INTEGER);
+  BEGIN
+    IF x > 0 THEN
+      Inc
+    ELSE
+      Reset
+    END
+  END Check;
+
+BEGIN count := 0 END Cuddle.

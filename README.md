@@ -36,6 +36,8 @@ given.
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--cuddle-begin WHAT` | a body's first statement on `BEGIN`'s line (`BEGIN RETURN x`): `allow` it where the source has it (default), `force` it, or `disallow` it; only when all of that statement fits |
+| `--cuddle-end WHAT` | `END` on that line too, when the whole body is on it (`BEGIN RETURN x END Get;`): `allow` (default), `force` or `disallow`, likewise; only when all of it fits |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
 | `--output-dir DIR` | write each file's formatted text to `DIR/` under the file's own name; `DIR` must exist |

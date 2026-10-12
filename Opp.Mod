@@ -44,8 +44,9 @@ VAR
   inPlace, check, tokens: BOOLEAN;
   outDir: OppText.Text; (* --output-dir's directory, or NIL *)
   damage: LONGINT;
-  caseBarOK, alignOK: BOOLEAN; (* --case-bar's and --align's values were
-                                   ones they take *)
+  caseBarOK, alignOK, cuddleOK: BOOLEAN; (* --case-bar's, --align's and
+                                             the --cuddle options' values
+                                             were ones they take *)
   configFile: OppText.Text; (* --config's file, or NIL *)
   noConfig: BOOLEAN; (* --no-config *)
   status: INTEGER; (* the exit status so far *)
@@ -87,6 +88,26 @@ BEGIN
   END;
   RETURN TRUE
 END SetCaseBar;
+
+(* A --cuddle option's value as a constant of OppFormat's, in c. *)
+PROCEDURE Cuddle(VAR val: ARRAY OF CHAR; VAR c: INTEGER);
+BEGIN
+  IF val = "allow" THEN c := OppFormat.cuddleAllow
+  ELSIF val = "force" THEN c := OppFormat.cuddleForce
+  ELSIF val = "disallow" THEN c := OppFormat.cuddleDisallow
+  ELSE cuddleOK := FALSE
+  END
+END Cuddle;
+
+PROCEDURE SetCuddleBegin(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  Cuddle(val, opts.cuddleBegin); RETURN TRUE
+END SetCuddleBegin;
+
+PROCEDURE SetCuddleEnd(VAR val: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  Cuddle(val, opts.cuddleEnd); RETURN TRUE
+END SetCuddleEnd;
 
 (* The kinds of alignment word names, as a set: all of them for all, none
    if it names none. *)
@@ -661,7 +682,7 @@ BEGIN
     Err.String(" needs a value"); EndConfigError
   ELSIF opt.kind = ArgParser.StringOption THEN
     IF opt.stringHandler(val) THEN END;
-    IF ~caseBarOK OR ~alignOK THEN
+    IF ~caseBarOK OR ~alignOK OR ~cuddleOK THEN
       ConfigError(name, n); Err.String("--"); Err.String(key);
       Err.String(" does not take "); Err.String(val); EndConfigError
     END
@@ -774,7 +795,9 @@ BEGIN
   opts.width := 80; opts.indent := 2; opts.mode := OppFormat.onePerLine;
   opts.moduleIndent := TRUE; opts.caseBar := OppFormat.keepBar;
   opts.align := OppFormat.keepAlign; opts.lineUp := {}; opts.single := {};
-  caseBarOK := TRUE; alignOK := TRUE;
+  opts.cuddleBegin := OppFormat.cuddleAllow;
+  opts.cuddleEnd := OppFormat.cuddleAllow;
+  caseBarOK := TRUE; alignOK := TRUE; cuddleOK := TRUE;
   inPlace := FALSE; check := FALSE; tokens := FALSE; outDir := NIL;
   damage := noDamage;
   status := 0;
@@ -816,6 +839,14 @@ BEGIN
                                  "A bar before a CASE's first arm: keep it as written (keep, the default), add one to every CASE (add), or drop it (drop).",
                                  SetCaseBar));
   parser.AddOption(
+      ArgParser.MakeStringOption(0X, "cuddle-begin",
+                                 "A body's first line on BEGIN's line, as BEGIN RETURN x: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.",
+                                 SetCuddleBegin));
+  parser.AddOption(
+      ArgParser.MakeStringOption(0X, "cuddle-end",
+                                 "END on that line too, when the whole body is on it, as BEGIN RETURN x END Get: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.",
+                                 SetCuddleEnd));
+  parser.AddOption(
       ArgParser.MakeStringOption(0X, "align",
                                  "What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.",
                                  SetAlign));
@@ -856,6 +887,9 @@ BEGIN
     IF AddFile(0, stdin) THEN END
   END;
   IF ~caseBarOK THEN UsageError("--case-bar takes keep, add or drop") END;
+  IF ~cuddleOK THEN
+    UsageError("--cuddle-begin and --cuddle-end take allow, force or disallow")
+  END;
   IF ~alignOK THEN
     UsageError(
         "--align takes words separated by commas: keep, drop, all, const, type, var, field, init, comment or case, each of the last eight with or without no before it")

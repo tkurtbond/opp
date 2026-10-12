@@ -39,6 +39,5 @@ MODULE Procedures;
                                secondParameter: LONGINT;
                                VAR third: ARRAY OF CHAR;
                                fourth, fifth: REAL): BOOLEAN;
-  BEGIN RETURN TRUE
-  END WithManyParameters;
+  BEGIN RETURN TRUE END WithManyParameters;
 END Procedures.
