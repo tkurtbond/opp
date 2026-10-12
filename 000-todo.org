@@ -1,7 +1,7 @@
 * TODO Opp should be able to read its configuration options from a config file.
 Search for the config file in the current directory and in ~/.config/opp/.
 * TODO There should be an option to write new versions of all the files specified in an output directory.
-* TODO There should be an option that tries to line things up.
+* DONE There should be an option that tries to line things up.
 Constants lined up in columns, types have their equal signs lined up,
 field and variable declaration have their types lined up, initializers
 have their := lined up, trailing comments, and so forth.  These should be individually turned on and off: perhaps something like "--align const,type,nofield,novar,init,comment" where specifiers without "no" turn on that type of alignment and specifiers with no don't turn on that type of alignment.
