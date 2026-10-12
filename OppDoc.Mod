@@ -25,7 +25,9 @@ MODULE OppDoc;
 
    Alignment adds extra spaces (Widen, Pad) that no layout decision
    counts, so they never change where lines break; Render renders until
-   none makes a line too long (PLAN.md, "OppDoc").
+   none makes a line too long (PLAN.md, "OppDoc"). A grid is the
+   exception: packed declarations lined up in columns, which are laid out
+   with their extra spaces counted, and otherwise as the layout it holds.
 
    Each node is used once: a node in a concatenation is linked to the next
    by its next field, so a node must never be put in two places. *)
@@ -38,7 +40,7 @@ CONST
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
   trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19; pad = 20;
-  run = 21; anchor = 22;
+  run = 21; anchor = 22; grid = 23; cell = 24; gap = 25; gridIn = 26;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -65,8 +67,18 @@ TYPE
     last: Doc; (* concat: the last part *)
     ref: Doc; (* fillLine: the mark before the item before it;
                  choiceLine, keptLine: its choice; softBreak: its
-                 fill; pad: its run *)
+                 fill; pad: its run; grid: its first cell; cell: what
+                 follows the space it lines up *)
     next: Doc; (* the next part of a concatenation *)
+
+    (* grid: child is the layout used when it is not laid out as a grid,
+       last its last cell, adjacent that it keeps the source's rows; cell:
+       child is what precedes the space it lines up, last the comments
+       after ref, or NIL, which end its row, sub the next cell, on that it
+       starts a row, and, as the last pass met it, width and limit the
+       widths of child and ref, extra that of last if it counts, col its
+       column in the grid, excluded that it is left out of the columns. gap: n spaces.
+       gridIn: n is added to the renderer's inGrid. *)
 
     (* alignment; widen: n is its width; pad: n is the author's gap, used
        when it is excluded; run, and a pad that starts a run of lines next
@@ -109,6 +121,7 @@ TYPE
   END;
 
   Lines = POINTER TO ARRAY OF LONGINT;
+  Cells = POINTER TO ARRAY OF Doc;
 
   Renderer = RECORD
     out: OppText.Buffer;
@@ -129,6 +142,7 @@ TYPE
     met, lastMet: Doc; (* the widens and pads this pass met *)
     lastPad: Doc; (* the last pad met on the current line *)
     padTexts: INTEGER; (* texts and comments written after it *)
+    inGrid: LONGINT; (* grids whose rows are being written *)
     lineCol, lineExtra, lineOrigin: Lines (* each line's width, extra
                                              spaces, and the line its
                                              shift comes from *)
@@ -297,6 +311,58 @@ BEGIN
   RETURN d
 END KeptLineItem;
 
+(* A grid with no cells yet: declarations that line up in columns, in
+   the source's rows if rows is set and they fit, and otherwise in as many
+   columns as fit; see AddCell and SetLayout. *)
+PROCEDURE NewGrid*(rows: BOOLEAN): Doc;
+  VAR g: Doc;
+BEGIN
+  g := NewNode(grid); g.adjacent := rows;
+  RETURN g
+END NewGrid;
+
+(* Adds to g a cell: name, a space lined up with the other cells' of its
+   column, rest, and tail, trailing comments that end its line, or NIL;
+   each of them a node of its own, so that it can also be part of g's
+   layout. newRow says that it starts a row of the source. *)
+PROCEDURE AddCell*(g, name, rest, tail: Doc; newRow: BOOLEAN);
+  VAR c: Doc;
+BEGIN
+  c := NewNode(cell); c.child := name; c.ref := rest; c.last := tail;
+  c.on := newRow;
+  IF g.ref = NIL THEN g.ref := c ELSE g.last.sub := c END;
+  g.last := c
+END AddCell;
+
+(* Makes d, which holds g's cells, the layout of g when g cannot be a grid:
+   when it is flat, or does not start a line, or its cells, flat, do not
+   fit in columns. *)
+PROCEDURE SetLayout*(g, d: Doc);
+BEGIN
+  g.child := d
+END SetLayout;
+
+PROCEDURE IsGrid*(d: Doc): BOOLEAN;
+BEGIN
+  RETURN (d # NIL) & (d.kind = grid)
+END IsGrid;
+
+(* Whether d, not what follows it in a chain, holds a comment. *)
+PROCEDURE HoldsComment*(d: Doc): BOOLEAN;
+  VAR x: Doc;
+BEGIN
+  IF d = NIL THEN RETURN FALSE
+  ELSIF d.kind = comment THEN RETURN TRUE
+  ELSIF d.kind IN {nest, align, alignOrNest, concat, group, grid} THEN
+    x := d.child;
+    WHILE x # NIL DO
+      IF HoldsComment(x) THEN RETURN TRUE END;
+      x := x.next
+    END
+  END;
+  RETURN FALSE
+END HoldsComment;
+
 (* d, with its line breaks indented n more. *)
 PROCEDURE Nest*(n: LONGINT; d: Doc): Doc;
   VAR r: Doc;
@@ -422,6 +488,12 @@ BEGIN
   f.doc := Cat(f.doc, s); f.item := NIL
 END Sep;
 
+(* A separator that breaks the line when the fill is broken. *)
+PROCEDURE LineSep*(VAR f: FillBuilder);
+BEGIN
+  f.doc := Cat(f.doc, Line()); f.item := NIL
+END LineSep;
+
 (* A separator that always breaks the line. *)
 PROCEDURE Break*(VAR f: FillBuilder);
 BEGIN
@@ -455,7 +527,7 @@ BEGIN
     | trailBreak: s := TRUE; e := FALSE
     | choiceLine: s := d.ref.n = 1; e := s
     | comment: s := d.multiLine; e := s
-    | nest, align, alignOrNest, concat: Propagate(d.child, s, e)
+    | nest, align, alignOrNest, concat, grid: Propagate(d.child, s, e)
     | group: Propagate(d.child, s, e); d.hard := e
     ELSE s := FALSE; e := FALSE
     END;
@@ -543,15 +615,46 @@ BEGIN
         END
     | softLine: IF mode = broken THEN RETURN TRUE END
     | hardLine, blankLine, trailBreak: RETURN ~inFirst OR (local = NIL)
-    | nest, align, alignOrNest, concat: Push(local, ind, mode, d.child, TRUE)
+    | nest, align, alignOrNest, concat, grid:
+        Push(local, ind, mode, d.child, TRUE)
     | group:
         IF d.hard THEN Push(local, ind, broken, d.child, TRUE)
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
-    | mark, choice, softBreak, widen, pad, run, anchor:
+    | gap: DEC(rem, d.n)
+    | mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn:
     END
   END
 END Fits;
+
+(* The width of d alone, flat, or -1 if it cannot be flat or holds a
+   comment; with comments, the width of trailing comments, which end their
+   line. *)
+PROCEDURE FlatWidth(d: Doc; comments: BOOLEAN): LONGINT;
+  VAR local: Frame; ind, w: LONGINT; mode: INTEGER;
+BEGIN
+  local := NIL; w := 0;
+  Push(local, 0, flat, d, FALSE);
+  WHILE local # NIL DO
+    d := Pop(local, ind, mode);
+    CASE d.kind OF
+      text: INC(w, d.width)
+    | space, line, fillLine: INC(w)
+    | choiceLine, keptLine: IF d.ref.n = 0 THEN INC(w) ELSE RETURN -1 END
+    | comment: IF comments THEN INC(w, d.width) ELSE RETURN -1 END
+    | trailBreak: IF ~comments THEN RETURN -1 END
+    | hardLine, blankLine: RETURN -1
+    | gap: INC(w, d.n)
+    | nest, align, alignOrNest, concat, grid:
+        Push(local, 0, flat, d.child, TRUE)
+    | group:
+        IF d.hard THEN RETURN -1 END;
+        Push(local, 0, flat, d.child, TRUE)
+    | softLine, mark, choice, softBreak, widen, pad, run, anchor, cell, gridIn:
+    END
+  END;
+  RETURN w
+END FlatWidth;
 
 (* Whether the chain from d holds a group that cannot be flat, or a hard
    choice's line: what cannot be on one line. *)
@@ -559,7 +662,7 @@ PROCEDURE HoldsHard(d: Doc): BOOLEAN;
 BEGIN
   WHILE d # NIL DO
     IF (d.kind = group) & d.hard OR (d.kind = choiceLine) & (d.ref.n = 1)
-        OR (d.kind IN {nest, align, alignOrNest, concat, group})
+        OR (d.kind IN {nest, align, alignOrNest, concat, group, grid})
             & HoldsHard(d.child) THEN
       RETURN TRUE
     END;
@@ -777,6 +880,153 @@ BEGIN
   r.lastMet := x
 END Met;
 
+(* Gives each cell its column: the next after the cell before's, or 0 to
+   start a row, as it does with rows when the source starts one there, and
+   otherwise after k columns; after a trailing comment; and before and
+   after a cell left out of the columns. *)
+PROCEDURE Assign(cells: Cells; rows: BOOLEAN; k: LONGINT);
+  VAR i: LONGINT; prev: Doc;
+BEGIN
+  cells[0].col := 0;
+  FOR i := 1 TO LEN(cells^) - 1 DO
+    prev := cells[i - 1];
+    IF (prev.last # NIL) OR prev.excluded OR cells[i].excluded
+        OR rows & cells[i].on OR ~rows & (prev.col = k - 1) THEN
+      cells[i].col := 0
+    ELSE
+      cells[i].col := prev.col + 1
+    END
+  END
+END Assign;
+
+(* Whether the cells, each in the column its col gives, fit in avail
+   columns: each column as wide as its widest cell, its spaces lined up,
+   and one space between columns; a cell's trailing comments counted, as
+   its extra gives them. A row starts at a cell in column 0. A cell left
+   out of the columns does not count. names and rests are set to the
+   widths of each column's two parts. *)
+PROCEDURE GridFits(cells: Cells; names, rests: Lines; avail: LONGINT): BOOLEAN;
+  VAR i, j, n, start: LONGINT; x: Doc;
+BEGIN
+  n := LEN(cells^);
+  FOR j := 0 TO n - 1 DO names[j] := 0; rests[j] := 0 END;
+  FOR i := 0 TO n - 1 DO
+    x := cells[i]; j := x.col;
+    IF ~x.excluded THEN
+      IF x.width > names[j] THEN names[j] := x.width END;
+      IF x.limit > rests[j] THEN rests[j] := x.limit END
+    END
+  END;
+  start := 0;
+  FOR i := 0 TO n - 1 DO
+    x := cells[i]; j := x.col;
+    IF j = 0 THEN start := 0
+    ELSE start := start + names[j - 1] + 1 + rests[j - 1] + 1
+    END;
+    IF ~x.excluded & (start + names[j] + 1 + x.limit + x.extra > avail) THEN
+      RETURN FALSE
+    END
+  END;
+  RETURN TRUE
+END GridFits;
+
+(* Push for a grid: d alone, in mode, shifted as the current frame is. *)
+PROCEDURE PushOne(VAR stack: Frame; VAR r: Renderer; ind: LONGINT;
+                  mode: INTEGER; d: Doc);
+BEGIN
+  Push(stack, ind, mode, d, FALSE);
+  stack.shift := r.shift; stack.origin := r.origin
+END PushOne;
+
+PROCEDURE Gap(n: LONGINT): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(gap); d.n := n;
+  RETURN d
+END Gap;
+
+PROCEDURE GridIn(n: LONGINT): Doc;
+  VAR d: Doc;
+BEGIN
+  d := NewNode(gridIn); d.n := n;
+  RETURN d
+END GridIn;
+
+(* Pushes the rows of the grid g, if it starts a line and its cells, flat,
+   fit in columns within width: in the source's rows if g keeps them and
+   they fit, and otherwise in as many columns as fit; a cell's trailing
+   comments end its row. A cell that cannot be flat, or is wider than half
+   the line, is left out of the columns: it has a row of its own, laid out
+   as it would be anywhere, its space lined up with the first column's if
+   it fits. The pads and widens of the cells are not met, but those of
+   the comments are. Whether it did. *)
+PROCEDURE PushGrid(VAR stack: Frame; VAR r: Renderer; ind: LONGINT; g: Doc;
+                   width: LONGINT): BOOLEAN;
+  VAR
+    cells: Cells; names, rests: Lines; x: Doc; n, i, j, k, avail: LONGINT;
+    fits: BOOLEAN;
+BEGIN
+  IF (r.pendingBreaks = 0) OR (r.inGrid > 0) THEN RETURN FALSE END;
+  avail := width - r.pendingIndent - r.pendingShift;
+  n := 0; x := g.ref;
+  WHILE x # NIL DO INC(n); x := x.sub END;
+  NEW(cells, n); NEW(names, n); NEW(rests, n);
+  i := 0; x := g.ref;
+  WHILE x # NIL DO
+    cells[i] := x; x.width := FlatWidth(x.child, FALSE);
+    x.limit := FlatWidth(x.ref, FALSE);
+    x.excluded := (x.width < 0) OR (x.limit < 0)
+        OR (x.width + 1 + x.limit > avail DIV 2);
+    x.extra := 0;
+    IF (x.last # NIL) & ~x.excluded THEN
+      x.extra := FlatWidth(x.last, TRUE);
+      (* a comment too long for a line of its own may overflow *)
+      IF (x.extra < 0) OR (x.width + 1 + x.limit + x.extra > avail) THEN
+        x.extra := 0
+      END
+    END;
+    INC(i); x := x.sub
+  END;
+  fits := FALSE;
+  IF g.adjacent THEN
+    Assign(cells, TRUE, 0); fits := GridFits(cells, names, rests, avail)
+  END;
+  k := n;
+  WHILE ~fits & (k > 0) DO
+    Assign(cells, FALSE, k); fits := GridFits(cells, names, rests, avail);
+    DEC(k)
+  END;
+  IF ~fits THEN RETURN FALSE END;
+  PushOne(stack, r, ind, broken, GridIn(-1));
+  FOR i := n - 1 TO 0 BY -1 DO
+    x := cells[i]; j := x.col;
+    IF (i < n - 1) & (cells[i + 1].col # 0) THEN
+      PushOne(stack, r, ind, flat, Gap(rests[j] - x.limit + 1))
+    END;
+    IF x.last # NIL THEN
+      PushOne(stack, r, ind, broken, GridIn(1));
+      PushOne(stack, r, ind, broken, x.last);
+      PushOne(stack, r, ind, broken, GridIn(-1))
+    END;
+    IF ~x.excluded THEN
+      PushOne(stack, r, ind, flat, x.ref);
+      PushOne(stack, r, ind, flat, Gap(names[j] - x.width + 1))
+    ELSE
+      PushOne(stack, r, ind, broken, x.ref);
+      IF (x.width >= 0) & (x.limit >= 0) & (names[0] > x.width)
+          & (names[0] + 1 + x.limit <= avail) THEN
+        PushOne(stack, r, ind, flat, Gap(names[0] - x.width + 1))
+      ELSE
+        PushOne(stack, r, ind, flat, Gap(1))
+      END
+    END;
+    PushOne(stack, r, ind, flat, x.child);
+    IF (i > 0) & (j = 0) THEN PushOne(stack, r, ind, broken, HardLine()) END
+  END;
+  INC(r.inGrid);
+  RETURN TRUE
+END PushGrid;
+
 (* One rendering of d: the layout is the same in every pass, as only the
    extra spaces differ. *)
 PROCEDURE Pass(d: Doc; width: LONGINT; VAR r: Renderer);
@@ -790,6 +1040,7 @@ BEGIN
   r.pendingPad := 0; r.pendingShift := 0; r.pendingOrigin := -1;
   r.extra := 0; r.shift := 0; r.origin := -1;
   r.lastLineBlank := FALSE; r.met := NIL; r.lastMet := NIL; r.lastPad := NIL;
+  r.inGrid := 0;
   IF r.lineCol = NIL THEN
     NEW(r.lineCol, 256); NEW(r.lineExtra, 256); NEW(r.lineOrigin, 256)
   END;
@@ -811,14 +1062,15 @@ BEGIN
           NewLine(r, ind, 1)
         END
     | widen:
-        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (x.n > 1) THEN
+        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (x.n > 1)
+            & (r.inGrid = 0) THEN
           IF r.first THEN x.on := TRUE END;
           x.line := NextLine(r); x.extra := 0;
           IF x.on THEN x.extra := x.n - 1 END;
           r.pendingPad := x.extra; Met(r, x)
         END
     | pad:
-        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) THEN
+        IF (r.pendingBreaks = 0) & (r.pendingSpaces = 1) & (r.inGrid = 0) THEN
           IF r.first THEN
             x.excluded := FALSE; x.midLine := FALSE; x.sub := NIL;
             r.lastPad := x; r.padTexts := 0
@@ -917,11 +1169,17 @@ BEGIN
           PushIn(stack, r, ind, broken, x.child)
         END
     | concat: PushIn(stack, r, ind, mode, x.child)
+    | grid:
+        IF (mode = flat) OR ~PushGrid(stack, r, ind, x, width) THEN
+          PushIn(stack, r, ind, mode, x.child)
+        END
+    | gap: IF r.pendingBreaks = 0 THEN INC(r.pendingSpaces, x.n) END
+    | gridIn: INC(r.inGrid, x.n)
     | mark: x.n := NextLine(r)
     | anchor:
         x.line := NextLine(r);
         x.on := (r.pendingBreaks > 0) OR (r.out.len = 0)
-    | choice, run:
+    | choice, run, cell:
     END
   END;
   IF r.out.len > 0 THEN OppText.AppendChar(r.out, 0AX); EndLine(r) END

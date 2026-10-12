@@ -121,6 +121,11 @@ earlier one, and the option can be given more than once.
 the
 .B =
 of constants, or of types;
+with
+.B \-p
+or
+.BR \-k ,
+constants that share lines go in a grid of straight columns (below);
 .TP
 .BR var ", " field
 the types of variables, or of fields;
@@ -167,6 +172,21 @@ that fits without them, and they never change where lines break.
 For example,
 .B \-\-align all,nocomment
 lines up everything but trailing comments.
+.IP
+With
+.B \-p
+or
+.BR \-k ,
+.B const
+puts constants in a grid: two or more declarations, with no blank line or
+comment between them and no comment inside them, in columns with the
+same number of declarations on each row, as many as fit, each column's
+.B =
+lined up.
+.B \-k
+keeps the source's rows if they fit.
+A trailing comment ends its row, and a declaration wider than half the
+line has a row of its own.
 .TP
 .B \-\-in\-place
 Replace each file with its formatted text.

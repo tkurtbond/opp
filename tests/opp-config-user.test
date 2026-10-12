@@ -8,9 +8,10 @@ output
 MODULE Align; (* columns an author lines up *)
 
 CONST
-  null   = 0;  times  = 1;  slash = 2; plus = 6; minus = 7;
-  eql   = 9; maxIdentLen = 32; (* the longest identifier *)
-  maxStrLen = 256;             (* the longest string *)
+  null        = 0;   times = 1; slash = 2;
+  plus        = 6;   minus = 7; eql   = 9;
+  maxIdentLen = 32;  (* the longest identifier *)
+  maxStrLen   = 256; (* the longest string *)
 
 TYPE
   Item = RECORD

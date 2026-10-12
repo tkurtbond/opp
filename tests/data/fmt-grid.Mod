@@ -1,0 +1,27 @@
+MODULE Grid; (* constants that --align const lines up in a grid *)
+
+CONST one = 1; two = 2;
+
+CONST
+  eof = 0; ident = 1; number = 2; string = 3; lparen = 4; rparen = 5;
+  semicolon = 6; colon = 7; becomes = 8; period = 9;
+  comma = 10; bar = 11;
+
+  (* widths *)
+  maxWidth = 1000; minWidth = 20; defaultWidth = 80; (* the default *)
+  tab = 9X; nl = 0AX;
+  first = 1; (* a comment *) second = 2; third = 3;
+  sum = 1 + (* in the expression *) 2; x = 4; y = 5;
+  long* = "a string long enough that it should be on a line of its own";
+  short- = 6; shorter = 7;
+
+CONST (* rows as the author has them *)
+  red = 0; green = 1; blue = 2;
+  cyan = 3; magenta = 4;
+  yellow = 5; black = 6; white = 7;
+
+PROCEDURE P;
+  CONST a = 1; bb = 22; ccc = 333; dddd = 4444; eeeee = 55555; ffffff = 666666;
+END P;
+
+END Grid.

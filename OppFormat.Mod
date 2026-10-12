@@ -98,6 +98,18 @@ TYPE
     prev: Item
   END;
 
+  (* a constant declaration, held until its section is parsed, so that it
+     can go in a grid *)
+  Decl = POINTER TO DeclDesc;
+  DeclDesc = RECORD
+    it: Item;
+    name, rest: D.Doc; (* the parts before and after the space before = *)
+    tail: D.Doc; (* the comments after its semicolon, or NIL *)
+    plain: BOOLEAN; (* it holds no comment but those of tail, each of
+                       one line *)
+    next: Decl
+  END;
+
 (* ---- Errors and tokens ---- *)
 
 PROCEDURE Error(p: Parser; msg: ARRAY OF CHAR);
@@ -210,14 +222,13 @@ BEGIN
   p.nextKind := kind; p.nextRun := run; p.nextAnchor := NIL
 END Mark;
 
-(* The current token with its comments, which it consumes. item says that
-   it starts a statement, declaration or other item, where a blank line
-   before it is kept. *)
-
-PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
+(* The current token with its leading comments, which it consumes, and in
+   tail its trailing comments. item says that it starts a statement,
+   declaration or other item, where a blank line before it is kept. *)
+PROCEDURE TokTail(p: Parser; item: BOOLEAN; VAR tail: D.Doc): D.Doc;
   VAR t: S.Token; d, g: D.Doc; c: S.Comment;
 BEGIN
-  t := p.tok;
+  t := p.tok; tail := NIL;
   IF t = p.eofTok THEN RETURN D.Empty() END;
   Advance(p);
   d := LeadDoc(t.lead);
@@ -237,17 +248,25 @@ BEGIN
   d := D.Cat(d, D.TextOf(t.text));
   c := t.trail;
   WHILE c # NIL DO
-    d := D.Cat(d, D.Space());
+    tail := D.Cat(tail, D.Space());
     IF c = t.trail THEN
-      d := D.Cat(d, KindGap(p, alignComment, p.comments, c.gap))
+      tail := D.Cat(tail, KindGap(p, alignComment, p.comments, c.gap))
     ELSE
-      d := D.Cat(d, Gap(p, c.gap))
+      tail := D.Cat(tail, Gap(p, c.gap))
     END;
-    d := D.Cat(d, D.Comment(c.text, c.column));
-    IF c.newlineAfter THEN d := D.Cat(d, D.TrailBreak()) END;
+    tail := D.Cat(tail, D.Comment(c.text, c.column));
+    IF c.newlineAfter THEN tail := D.Cat(tail, D.TrailBreak()) END;
     c := c.next
   END;
   RETURN d
+END TokTail;
+
+(* The current token with its comments, which it consumes, as TokTail. *)
+PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
+  VAR d, tail: D.Doc;
+BEGIN
+  d := TokTail(p, item, tail);
+  RETURN D.Cat(d, tail)
 END TokItem;
 
 PROCEDURE Tok(p: Parser): D.Doc;
@@ -346,7 +365,10 @@ BEGIN
     | pack: share := packable & q.prev.simple & it.simple
     | keepLines: share := it.startLine = q.prev.endLine
     END;
-    IF share & (it.lead = NIL) THEN D.Sep(q.fill) ELSE D.Break(q.fill) END
+    IF (it.lead # NIL) OR ~share THEN D.Break(q.fill)
+    ELSIF D.IsGrid(it.doc) OR D.IsGrid(q.prev.doc) THEN D.LineSep(q.fill)
+    ELSE D.Sep(q.fill)
+    END
   END;
   IF it.lead # NIL THEN D.AddLead(q.fill, it.lead) END;
   D.Add(q.fill, it.doc);
@@ -994,6 +1016,49 @@ END StatementSeq;
 
 (* ---- Declarations ---- *)
 
+(* Whether x starts a row of the source: in --pack mode, each declaration
+   is a row of its own. *)
+PROCEDURE StartsRow(p: Parser; prev, x: Decl): BOOLEAN;
+BEGIN
+  RETURN (prev = NIL) OR (p.mode # keepLines) OR (x.it.lead # NIL)
+      OR (x.it.startLine # prev.it.endLine)
+END StartsRow;
+
+(* Appends the constant declarations from x to q, with --align const in
+   grids: a grid holds two or more declarations that hold no comment but
+   those that end their lines, with no comment or blank line between them.
+   With --keep-lines, a grid keeps the source's rows if they fit. *)
+PROCEDURE AddDecls(p: Parser; VAR q: Seq; x: Decl);
+  VAR first, last, prev, y: Decl; s: Seq; g: D.Doc; it: Item;
+BEGIN
+  prev := NIL;
+  WHILE x # NIL DO
+    first := x; last := x; x := x.next;
+    IF first.plain THEN
+      WHILE (x # NIL) & x.plain & (x.it.lead = NIL) DO
+        last := x; x := x.next
+      END
+    END;
+    IF last = first THEN
+      AddItem(p, q, first.it, TRUE); prev := first
+    ELSE
+      g := D.NewGrid(p.mode = keepLines);
+      InitSeq(s);
+      it := first.it; first.it.lead := NIL; y := first;
+      LOOP
+        D.AddCell(g, y.name, y.rest, y.tail,
+                  (y = first) OR StartsRow(p, prev, y));
+        AddItem(p, s, y.it, TRUE); prev := y;
+        IF y = last THEN EXIT END;
+        y := y.next
+      END;
+      D.SetLayout(g, SeqDoc(s));
+      it.doc := g; it.endLine := last.it.endLine;
+      AddItem(p, q, it, TRUE)
+    END
+  END
+END AddDecls;
+
 (* A CONST, TYPE or VAR section: the keyword, then its declarations, each
    ended by a semicolon. One declaration that fits goes on the keyword's
    line; --pack fills lines with them, on the keyword's line if they all
@@ -1001,9 +1066,13 @@ END StatementSeq;
    keyword's line only if they all are, and fit. *)
 PROCEDURE Section(p: Parser): D.Doc;
   VAR
-    kw, d, pre, run, inits: D.Doc; q: Seq; it: Item; kind, n: INTEGER;
-    kwLine, firstLine: LONGINT;
+    kw, d, pre, run, inits, name, rest, tail: D.Doc; q: Seq; it: Item;
+    kind, n: INTEGER; kwLine, firstLine: LONGINT; grid, plain: BOOLEAN;
+    decls, lastDecl, x: Decl; c: S.Comment;
 BEGIN
+  grid := (p.tok.kind = S.const) & (alignConst IN p.lineUp)
+      & ~(alignConst IN p.single) & (p.mode # onePerLine);
+  decls := NIL; lastDecl := NIL;
   kind := p.tok.kind; kwLine := p.tok.line;
   pre := ItemLead(p);
   kw := Tok(p);
@@ -1014,7 +1083,9 @@ BEGIN
     IF p.tok.blankBefore THEN (* a blank line ends a run *)
       run := D.NewRun(FALSE); inits := D.NewRun(FALSE)
     END;
+    plain := TRUE;
     it.lead := ItemLead(p);
+    name := NIL; rest := NIL; tail := NIL;
     IF kind = S.var THEN
       d := IdentList(p, TRUE); Put(d, Expect(p, S.colon));
       Mark(p, alignVar, run);
@@ -1023,20 +1094,44 @@ BEGIN
         Mark(p, alignInit, inits);
         d := D.Cat3(d, D.Space(), Tok(p)); d := D.Cat3(d, D.Space(), Expr(p))
       END
+    ELSIF kind = S.const THEN
+      (* the parts around the space before =, each a node of its own *)
+      name := D.Nest(0, IdentDef(p, TRUE));
+      Mark(p, alignConst, run);
+      rest := D.Cat(Expect(p, S.eql), D.Space()); Put(rest, Expr(p));
+      IF Is(p, S.semicolon) THEN Put(rest, TokTail(p, FALSE, tail))
+      ELSE ExpectedKind(p, S.semicolon); tail := NIL
+      END;
+      rest := D.Nest(0, rest);
+      IF tail # NIL THEN
+        tail := D.Nest(0, tail);
+        c := p.last.trail;
+        WHILE c # NIL DO
+          IF c.multiLine THEN plain := FALSE END;
+          c := c.next
+        END
+      END;
+      d := D.Cat(D.Cat3(name, D.Space(), rest), tail)
     ELSE
       d := IdentDef(p, TRUE);
-      IF kind = S.const THEN Mark(p, alignConst, run)
-      ELSE Mark(p, alignType, run)
-      END;
+      Mark(p, alignType, run);
       d := D.Cat3(d, D.Space(), Expect(p, S.eql));
-      IF kind = S.const THEN d := D.Cat3(d, D.Space(), Expr(p))
-      ELSE d := D.Cat3(d, D.Space(), Type(p))
-      END
+      d := D.Cat3(d, D.Space(), Type(p))
     END;
-    it.doc := D.Cat(d, Expect(p, S.semicolon));
-    it.endLine := p.last.endLine;
-    AddItem(p, q, it, TRUE); INC(n)
+    IF kind # S.const THEN d := D.Cat(d, Expect(p, S.semicolon)) END;
+    it.doc := d; it.endLine := p.last.endLine;
+    IF grid THEN
+      NEW(x); x.it := it; x.name := name; x.rest := rest; x.tail := tail;
+      x.next := NIL;
+      x.plain := plain & ~D.HoldsComment(name) & ~D.HoldsComment(rest);
+      IF lastDecl = NIL THEN decls := x ELSE lastDecl.next := x END;
+      lastDecl := x
+    ELSE
+      AddItem(p, q, it, TRUE)
+    END;
+    INC(n)
   END;
+  IF grid THEN AddDecls(p, q, decls) END;
   d := SeqDoc(q);
   IF d = NIL THEN
     d := kw

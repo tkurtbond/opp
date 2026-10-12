@@ -84,8 +84,17 @@ ok - a comment with text after it is left out, with the author's gap
 ok - a pad whose anchor does not start its line is left out of its run
 ok - a widening that pushes a later aligned line too far is dropped
 ok - a widening that keeps every line within the width is kept
+ok - a grid has as many columns as fit
+ok - a grid has one column when two do not fit
+ok - a grid keeps the source's rows when they fit
+ok - a grid whose source's rows do not fit has as many columns as fit
+ok - a flat grid is its layout
+ok - a trailing comment in a grid ends its row
+ok - a trailing comment counts in how many columns fit
+ok - a trailing comment too long for any row does not count
+ok - a cell wider than half the line has a row of its own
 ok - a first statement that fits goes on BEGIN's line
 ok - a first statement that does not fit goes on the next line
 ok - a first statement of several lines goes on the next line
 ok - a first statement broken by its choice goes on the next line
-85/85 tests passed.
+94/94 tests passed.

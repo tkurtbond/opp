@@ -161,6 +161,7 @@ what follows a group [3]; "References" below has the sources:
 | `Choice`, `ChoiceLine` | spaces | line breaks; the parser decides each choice before rendering |
 | `Widen n` | after one space on the line, that space made `n` wide unless that makes a line too long | |
 | `Pad run gap` | after one space on the line, that space widened to line up with the other pads of `run`, unless that makes a line too long | |
+| `Grid` (`NewGrid`, `AddCell`, `SetLayout`) | declarations lined up in columns, each cell a name, a lined-up space, the rest, and trailing comments; its layout when flat, or when it does not start a line | |
 
 - A group is laid out flat when it, and what follows it up to the next
   possible line break, fits in the rest of the line. A comment that ends
@@ -192,7 +193,20 @@ what follows a group [3]; "References" below has the sources:
   (`Pad`), turning off such a run and recomputing each run's column (the
   furthest column any of its pads starts at) until the columns settle.
   The author's gaps settle first so that formatting the output again
-  changes nothing. A line too long without its extra spaces, for a comment
+  changes nothing.
+- A `Grid` is the exception: its columns' spaces count in its layout,
+  which the renderer decides when it meets the grid at the start of a
+  line, broken. It measures each cell flat, and lays the cells out in
+  the source's rows if the grid keeps them (`-k`) and they fit, and
+  otherwise in the most columns, the same number on every row, that fit;
+  each column as wide as its widest cell, one space between columns. A
+  cell's trailing comments end its row and count in its width, unless
+  they would not fit even on a line with the cell alone. A cell that
+  cannot be flat, or is wider than half the line, has a row of its own
+  outside the columns, laid out as anywhere else. The pads and widens
+  inside the cells do nothing; those of their trailing comments still
+  line them up. If no number of columns fits, or the grid is flat, it is
+  its layout, the fill it holds. A line too long without its extra spaces, for a comment
   or string that cannot break, keeps them.
 - A run of pads is one run of the parser's (a section's or a record's
   declarations, or a `CASE`'s arms, up to a blank line), less the pads on
@@ -445,7 +459,11 @@ survive. `--align` takes words separated by commas, later ones winning:
 `keep` (the default) and `drop` keep the author's spaces, or make them one
 space, where no word says otherwise. A run of declarations is those of a
 section or record up to a blank line; a line holding several of them
-(`-p`, `-k`) is left out of its run and keeps the author's spacing. A run
+(`-p`, `-k`) is left out of its run and keeps the author's spacing,
+except that `const` with `-p` or `-k` lines up constants in a grid: two
+or more declarations with no comment or blank line between them and no
+comment inside them (a trailing comment is allowed, and ends its row), in
+straight columns, in `-k` in the source's rows if they fit. A run
 of assignments is a statement sequence's consecutive assignments, up to a
 blank line or another kind of statement; one that does not start its line
 (after another statement in `-p`, or on `BEGIN`'s line) is left out, as an
@@ -495,7 +513,16 @@ not lined up.
   gives it one space; `keep` and `drop` say what happens to the author's
   spaces elsewhere. One option, so a configuration file can hold it as
   one line. Only runs with one declaration to a line are lined up, not
-  the grids of packed lines.
+  the grids of packed lines, except constants (next).
+- **`--align const` lines up packed constants in a grid** (2026-10-12,
+  with the user): with `-p` or `-k`, constants go in straight columns,
+  the same number of declarations on each row, as many as fit ("fixed
+  columns", chosen over fixed-width cells); `-k` keeps the source's rows
+  if they fit, and otherwise lays them out as `-p` does, so formatting
+  again changes nothing. A grid stops at a blank line, a leading comment
+  and a declaration with a comment inside it, never at a row, so that the
+  rows a fill re-breaks cannot join a grid the next time. Only constants
+  so far: types and variables could follow.
 - **`--output-dir DIR`** (2026-10-12, from `000-todo.org`): the formatted
   files go flat into `DIR` under their base names, every file named, as
   "new versions of all the files"; `DIR` must exist.
@@ -525,8 +552,7 @@ not lined up.
 
 ## Open questions
 
-- Lining up packed declarations in grid columns, as voc's `OPS.Mod`
-  does by hand (see "Later").
+- Grids for packed `TYPE` and `VAR` declarations too (see "Later").
 
 ## Phases
 
@@ -719,12 +745,15 @@ Done (2026-10-12):
   flat group as a space, which changed no existing output (checked over
   the corpus in four configurations); `make corpus` runs `-p` with both
   `force`: 27 configurations.
+- `--align const` with `-p` and `-k`: constants in grid columns
+  (OppDoc's `Grid`, OppFormat's `AddDecls`); `make corpus` runs
+  `-p --align all` too: 30 configurations.
 
 ### Later
 
 - Breaking after `:=` when the right side cannot break well, for the
   assignments that still overflow at narrow widths.
-- Lining up packed declarations (`-p`, `-k`) in grid columns.
+- Grids for packed `TYPE` and `VAR` declarations, as for constants.
 - Formatting a range of lines, for editor integration.
 - Building and running opp on VAX/VMS once poc's VMS backend can.
 

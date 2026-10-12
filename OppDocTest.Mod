@@ -502,6 +502,101 @@ BEGIN
         6, "a   bb|    cc|")
 END Pads;
 
+(* Adds to the grid g a cell, name and then "= " and value, and to f, the
+   grid's layout, the same, after a line break if newRow, and otherwise
+   after a fill separator; with comment after it unless that is empty.
+   first says that it is the first cell. *)
+PROCEDURE Cell(g: D.Doc; VAR f: D.FillBuilder;
+               name, value, comment: ARRAY OF CHAR; first, newRow: BOOLEAN);
+  VAR n, r, t: D.Doc;
+BEGIN
+  n := D.Nest(0, Tx(name));
+  r := D.Nest(0, D.Cat3(Tx("="), D.Space(), Tx(value)));
+  t := NIL;
+  IF comment # "" THEN
+    t := D.Nest(0, D.Cat3(D.Space(), D.Comment(T(comment), 1), D.TrailBreak()))
+  END;
+  D.AddCell(g, n, r, t, newRow);
+  IF first THEN
+  ELSIF newRow THEN D.Break(f)
+  ELSE D.Sep(f)
+  END;
+  D.Add(f, D.Cat3(n, D.Space(), r)); D.Add(f, t)
+END Cell;
+
+(* "CONST" and the grid g, with the layout f, on the lines below it, or on
+   its line if group and they fit there. *)
+PROCEDURE Section(g: D.Doc; VAR f: D.FillBuilder; group: BOOLEAN): D.Doc;
+BEGIN
+  D.SetLayout(g, D.Fill(f));
+  IF group THEN RETURN D.Group(
+        D.Cat(Tx("CONST"), D.Nest(2, D.Cat(D.Line(), g))))
+  END;
+  RETURN D.Cat(Tx("CONST"), D.Nest(2, D.Cat(D.HardLine(), g)))
+END Section;
+
+(* A grid of a = 1;, bbb = 22;, cc = 3; and d = 4444;, in one row of the
+   source if rows. *)
+PROCEDURE FourCells(rows: BOOLEAN): D.Doc;
+  VAR g: D.Doc; f: D.FillBuilder;
+BEGIN
+  g := D.NewGrid(rows); D.InitFill(f);
+  Cell(g, f, "a", "1;", "", TRUE, TRUE);
+  Cell(g, f, "bbb", "22;", "", FALSE, FALSE);
+  Cell(g, f, "cc", "3;", "", FALSE, FALSE);
+  Cell(g, f, "d", "4444;", "", FALSE, FALSE);
+  RETURN Section(g, f, FALSE)
+END FourCells;
+
+(* Declarations lined up in columns. *)
+PROCEDURE Grids;
+  VAR g: D.Doc; f: D.FillBuilder;
+BEGIN
+  Check("a grid has as many columns as fit", FourCells(FALSE), 21,
+        "CONST|  a  = 1; bbb = 22;|  cc = 3; d   = 4444;|");
+  Check("a grid has one column when two do not fit", FourCells(FALSE), 20,
+        "CONST|  a   = 1;|  bbb = 22;|  cc  = 3;|  d   = 4444;|");
+  g := D.NewGrid(TRUE); D.InitFill(f);
+  Cell(g, f, "a", "1;", "", TRUE, TRUE);
+  Cell(g, f, "bbb", "22;", "", FALSE, FALSE);
+  Cell(g, f, "cc", "3;", "", FALSE, TRUE);
+  Check("a grid keeps the source's rows when they fit", Section(g, f, FALSE),
+        80, "CONST|  a  = 1; bbb = 22;|  cc = 3;|");
+  Check("a grid whose source's rows do not fit has as many columns as fit",
+        FourCells(TRUE), 21,
+        "CONST|  a  = 1; bbb = 22;|  cc = 3; d   = 4444;|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  Cell(g, f, "a", "1;", "", TRUE, TRUE);
+  Cell(g, f, "b", "2;", "", FALSE, FALSE);
+  Check("a flat grid is its layout", Section(g, f, TRUE), 80,
+        "CONST a = 1; b = 2;|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  Cell(g, f, "a", "1;", "(* c *)", TRUE, TRUE);
+  Cell(g, f, "bbb", "2;", "", FALSE, FALSE);
+  Cell(g, f, "c", "3;", "", FALSE, FALSE);
+  Check("a trailing comment in a grid ends its row", Section(g, f, FALSE), 80,
+        "CONST|  a   = 1; (* c *)|  bbb = 2; c = 3;|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  Cell(g, f, "aaaa", "1;", "", TRUE, TRUE);
+  Cell(g, f, "b", "2;", "(* c *)", FALSE, FALSE);
+  Check("a trailing comment counts in how many columns fit",
+        Section(g, f, FALSE), 20, "CONST|  aaaa = 1;|  b    = 2; (* c *)|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  Cell(g, f, "aaaa", "1;", "", TRUE, TRUE);
+  Cell(g, f, "b", "2;", "(* a longer comment *)", FALSE, FALSE);
+  Check("a trailing comment too long for any row does not count",
+        Section(g, f, FALSE), 20,
+        "CONST|  aaaa = 1; b = 2; (* a longer comment *)|");
+  g := D.NewGrid(FALSE); D.InitFill(f);
+  Cell(g, f, "a", "1;", "", TRUE, TRUE);
+  Cell(g, f, "bb", "2;", "", FALSE, FALSE);
+  Cell(g, f, "c", "333333;", "", FALSE, FALSE);
+  Cell(g, f, "ddd", "4;", "", FALSE, FALSE);
+  Check("a cell wider than half the line has a row of its own",
+        Section(g, f, FALSE), 22,
+        "CONST|  a   = 1; bb = 2;|  c   = 333333;|  ddd = 4;|")
+END Grids;
+
 (* The line after BEGIN. *)
 PROCEDURE Begins;
 BEGIN
@@ -518,7 +613,7 @@ END Begins;
 BEGIN
   passed := 0; total := 0;
   Basics; Indentation; Groups; LineBreaks; Fills; Choices; Comments;
-  Widths; Pads; Begins;
+  Widths; Pads; Grids; Begins;
   Out.Int(passed, 0); Out.Char("/"); Out.Int(total, 0);
   Out.String(" tests passed."); Out.Ln;
   Out.Flush;
