@@ -38,7 +38,7 @@ CONST
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
   concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
   trailBreak = 16; softBreak = 17; keptLine = 18; widen = 19; pad = 20;
-  run = 21;
+  run = 21; anchor = 22;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -83,6 +83,8 @@ TYPE
                                   the extra spaces it wrote *)
     sub: Doc; (* pad: what holds its run's column, its run or the pad
                  that starts its lines *)
+    from: Doc; (* pad: the anchor where what it is in starts, or NIL;
+                  anchor: on, if it started a line, and its line *)
     link: Doc (* widen, pad: the next the last pass met *)
   END;
 
@@ -141,7 +143,7 @@ BEGIN
   d.multiLine := FALSE; d.hard := FALSE;
   d.child := NIL; d.last := NIL; d.ref := NIL; d.next := NIL;
   d.on := FALSE; d.adjacent := FALSE; d.excluded := FALSE; d.line := -1;
-  d.col := 0; d.extra := 0; d.sub := NIL; d.link := NIL;
+  d.col := 0; d.extra := 0; d.sub := NIL; d.link := NIL; d.from := NIL;
   RETURN d
 END NewNode;
 
@@ -250,11 +252,24 @@ BEGIN
   RETURN d
 END NewRun;
 
+(* Nothing: the start of something with a pad in it, as a statement. *)
+PROCEDURE Anchor*(): Doc;
+BEGIN
+  RETURN NewNode(anchor)
+END Anchor;
+
+(* p, a pad, lines up only when what it is in starts its line, at a. *)
+PROCEDURE SetAnchor*(p, a: Doc);
+BEGIN
+  p.from := a
+END SetAnchor;
+
 (* Nothing, or, after a space on the same line, that space widened so that
    what follows starts at the same column as after the other pads of run,
    unless that makes a line too long. A pad on a line with another of its
-   run, or before a comment with text after it on its line, is not lined
-   up: it is Widen(gap). Layout decisions ignore it. *)
+   run, before a comment with text after it on its line, or whose anchor
+   does not start its line, is not lined up: it is Widen(gap). Layout
+   decisions ignore it. *)
 PROCEDURE Pad*(run: Doc; gap: LONGINT): Doc;
   VAR d: Doc;
 BEGIN
@@ -533,7 +548,7 @@ BEGIN
         IF d.hard THEN Push(local, ind, broken, d.child, TRUE)
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
-    | mark, choice, softBreak, widen, pad, run:
+    | mark, choice, softBreak, widen, pad, run, anchor:
     END
   END
 END Fits;
@@ -903,6 +918,9 @@ BEGIN
         END
     | concat: PushIn(stack, r, ind, mode, x.child)
     | mark: x.n := NextLine(r)
+    | anchor:
+        x.line := NextLine(r);
+        x.on := (r.pendingBreaks > 0) OR (r.out.len = 0)
     | choice, run:
     END
   END;
@@ -967,7 +985,10 @@ BEGIN
       IF (prev # NIL) & (prev.line = x.line) & ~x.ref.adjacent THEN
         prev.excluded := TRUE; x.excluded := TRUE
       END;
-      IF x.midLine & x.ref.adjacent THEN x.excluded := TRUE END;
+      IF x.midLine & x.ref.adjacent
+          OR (x.from # NIL) & (~x.from.on OR (x.from.line # x.line)) THEN
+        x.excluded := TRUE
+      END;
       x.on := TRUE; x.ref.last := x
     END;
     x := x.link

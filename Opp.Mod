@@ -120,8 +120,9 @@ BEGIN
   ELSIF word = "init" THEN RETURN {OppFormat.alignInit}
   ELSIF word = "comment" THEN RETURN {OppFormat.alignComment}
   ELSIF word = "case" THEN RETURN {OppFormat.alignCase}
+  ELSIF word = "assign" THEN RETURN {OppFormat.alignAssign}
   ELSIF word = "all" THEN
-    RETURN {OppFormat.alignConst..OppFormat.alignCase}
+    RETURN {OppFormat.alignConst..OppFormat.alignAssign}
   END;
   RETURN {}
 END AlignKinds;
@@ -848,7 +849,7 @@ BEGIN
                                  SetCuddleEnd));
   parser.AddOption(
       ArgParser.MakeStringOption(0X, "align",
-                                 "What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.",
+                                 "What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.",
                                  SetAlign));
   parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",
@@ -892,7 +893,7 @@ BEGIN
   END;
   IF ~alignOK THEN
     UsageError(
-        "--align takes words separated by commas: keep, drop, all, const, type, var, field, init, comment or case, each of the last eight with or without no before it")
+        "--align takes words separated by commas: keep, drop, all, const, type, var, field, init, comment, case or assign, each of the last nine with or without no before it")
   END;
   IF inPlace & check THEN
     UsageError("--in-place and --check cannot be used together")

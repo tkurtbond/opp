@@ -81,10 +81,11 @@ ok - a run that would make a line too long is not lined up
 ok - pads sharing a line are left out of their run, with the author's gap
 ok - trailing comments line up on lines next to each other
 ok - a comment with text after it is left out, with the author's gap
+ok - a pad whose anchor does not start its line is left out of its run
 ok - a widening that pushes a later aligned line too far is dropped
 ok - a widening that keeps every line within the width is kept
 ok - a first statement that fits goes on BEGIN's line
 ok - a first statement that does not fit goes on the next line
 ok - a first statement of several lines goes on the next line
 ok - a first statement broken by its choice goes on the next line
-84/84 tests passed.
+85/85 tests passed.

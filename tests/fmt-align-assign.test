@@ -1,0 +1,32 @@
+# --align assign lines up the := of consecutive assignments: a run ends
+# at a blank line or another kind of statement, and a nested statement
+# sequence has runs of its own.
+program Opp
+arg --align
+arg assign
+arg tests/data/fmt-align-assign.Mod
+status 0
+output
+MODULE AlignAssign; (* --align assign: the := of assignments *)
+
+  VAR
+    x, count, total, i: INTEGER;
+    name: ARRAY 8 OF CHAR;
+
+BEGIN
+  x       := 1;
+  count   := 0;
+  name[0] := 0X;
+  Out.String("hi");
+  total := x + count;
+  i     := 0;
+  IF x > 0 THEN
+    count := count + 1;
+    i     := i - 1
+  END;
+
+  total := 0;
+  i     := 2;
+  x     := 3;
+  count := total * total + count * count + x * x + i * i + 1000
+END AlignAssign.

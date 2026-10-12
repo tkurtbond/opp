@@ -44,7 +44,7 @@ it writes each formatted file to standard output in turn, unless
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
 | `--cuddle-begin WHAT` | a body's first statement on `BEGIN`'s line (`BEGIN RETURN x`): `allow` it where the source has it (default), `force` it, or `disallow` it; only when all of that statement fits |
 | `--cuddle-end WHAT` | `END` on that line too, when the whole body is on it (`BEGIN RETURN x END Get;`): `allow` (default), `force` or `disallow`, likewise; only when all of it fits |
-| `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
+| `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, `assign`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
 | `--in-place` | replace each file with its formatted text |
 | `--output-dir DIR` | write each file's formatted text to `DIR/` under the file's own name; `DIR` must exist |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
@@ -438,6 +438,7 @@ survive. `--align` takes words separated by commas, later ones winning:
 | `init` | the `:=` of poc's initializers |
 | `comment` | trailing comments on lines next to each other |
 | `case` | the bodies of `CASE` arms on their labels' lines, and `ELSE`'s |
+| `assign` | the `:=` of assignments, in a run of them that each start a line |
 | `all` | all of these |
 
 `no` before a word (`nocomment`, `noall`) makes those spaces one space;
@@ -445,7 +446,11 @@ survive. `--align` takes words separated by commas, later ones winning:
 space, where no word says otherwise. A run of declarations is those of a
 section or record up to a blank line; a line holding several of them
 (`-p`, `-k`) is left out of its run and keeps the author's spacing. A run
-that would make too long a line is not lined up.
+of assignments is a statement sequence's consecutive assignments, up to a
+blank line or another kind of statement; one that does not start its line
+(after another statement in `-p`, or on `BEGIN`'s line) is left out, as an
+`Anchor` at its start records. A run that would make too long a line is
+not lined up.
 
 ## Decisions
 
@@ -485,7 +490,8 @@ that would make too long a line is not lined up.
 - **An author's tabular alignment is kept by default** (2026-10-12, with
   the user), and **`--align` takes a list of what opp lines up itself**
   (2026-10-12, with the user, from `000-todo.org`): `const`, `type`,
-  `var`, `field`, `init`, `comment`, `case` and `all`; `no` before one
+  `var`, `field`, `init`, `comment`, `case` and `all` (and `assign`,
+  added later from `000-todo.org`); `no` before one
   gives it one space; `keep` and `drop` say what happens to the author's
   spaces elsewhere. One option, so a configuration file can hold it as
   one line. Only runs with one declaration to a line are lined up, not

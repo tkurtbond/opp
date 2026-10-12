@@ -37,9 +37,9 @@ CONST
   keepAlign* = 0; dropAlign* = 1;
   (* what --align can line up: the = of constants and of types, the types
      of variables and of fields, the := of initializers, trailing
-     comments, and the bodies of CASE arms *)
+     comments, the bodies of CASE arms, and the := of assignments *)
   alignConst* = 0; alignType* = 1; alignVar* = 2; alignField* = 3;
-  alignInit* = 4; alignComment* = 5; alignCase* = 6;
+  alignInit* = 4; alignComment* = 5; alignCase* = 6; alignAssign* = 7;
 
   (* what a list holds, for Element *)
   exprs = 0; braceElements = 1; caseLabels = 2;
@@ -71,7 +71,10 @@ TYPE
     nextKind: INTEGER; (* what the space before the next token taken
                           lines up, or -1 *)
     nextRun: D.Doc; (* the run it lines up in *)
+    nextAnchor: D.Doc; (* where what it is in starts, or NIL *)
     comments: D.Doc; (* the run of trailing comments *)
+    assigns: D.Doc; (* the run of the current statement sequence's
+                       assignments *)
     ind: LONGINT; (* the indentation step *)
     cont: LONGINT; (* the indentation of a continued line *)
     limit: LONGINT; (* the last column to align a list to *)
@@ -85,6 +88,7 @@ TYPE
     lead: D.Doc; (* its leading comments and blank line, or NIL *)
     doc: D.Doc;
     simple: BOOLEAN; (* a statement that is not structured *)
+    assign: BOOLEAN; (* an assignment *)
     startLine, endLine: LONGINT
   END;
 
@@ -203,7 +207,7 @@ END KindGap;
 (* The space before the next token taken is one of kind, in run. *)
 PROCEDURE Mark(p: Parser; kind: INTEGER; run: D.Doc);
 BEGIN
-  p.nextKind := kind; p.nextRun := run
+  p.nextKind := kind; p.nextRun := run; p.nextAnchor := NIL
 END Mark;
 
 (* The current token with its comments, which it consumes. item says that
@@ -211,7 +215,7 @@ END Mark;
    before it is kept. *)
 
 PROCEDURE TokItem(p: Parser; item: BOOLEAN): D.Doc;
-  VAR t: S.Token; d: D.Doc; c: S.Comment;
+  VAR t: S.Token; d, g: D.Doc; c: S.Comment;
 BEGIN
   t := p.tok;
   IF t = p.eofTok THEN RETURN D.Empty() END;
@@ -223,8 +227,10 @@ BEGIN
     d := D.Cat(d, D.HardLine())
   END;
   IF p.nextKind >= 0 THEN
-    d := D.Cat(d, KindGap(p, p.nextKind, p.nextRun, t.gap));
-    p.nextKind := -1
+    g := KindGap(p, p.nextKind, p.nextRun, t.gap);
+    IF (g # NIL) & (p.nextAnchor # NIL) THEN D.SetAnchor(g, p.nextAnchor) END;
+    d := D.Cat(d, g);
+    p.nextKind := -1; p.nextAnchor := NIL
   ELSE
     d := D.Cat(d, Gap(p, t.gap))
   END;
@@ -879,13 +885,15 @@ BEGIN
 END IfStatement;
 
 PROCEDURE Statement(p: Parser; VAR it: Item);
-  VAR d, c, pre: D.Doc; start: LONGINT;
+  VAR d, c, pre, a: D.Doc; start: LONGINT;
 BEGIN
   start := p.tok.line; it.startLine := start; it.simple := TRUE;
+  it.assign := FALSE;
   pre := ItemLead(p);
   CASE p.tok.kind OF
     S.ident:
-      d := Tok(p);
+      a := D.Anchor();
+      d := D.Cat(a, Tok(p));
       (* the rest of a designator, as Designator *)
       LOOP
         IF Is(p, S.period) THEN Put(d, Tok(p)); Put(d, Expect(p, S.ident))
@@ -896,6 +904,8 @@ BEGIN
         END
       END;
       IF Is(p, S.becomes) THEN
+        it.assign := TRUE; Mark(p, alignAssign, p.assigns);
+        p.nextAnchor := a;
         d := D.Cat3(d, D.Space(), Tok(p)); d := D.Cat3(d, D.Space(), Expr(p))
       END
   | S.if: it.simple := FALSE; d := IfStatement(p, start)
@@ -958,12 +968,16 @@ END StartsStatement;
    statement's semicolon is dropped; the one after the last statement is
    kept. *)
 PROCEDURE StatementSeq(p: Parser): D.Doc;
-  VAR q: Seq; it: Item;
+  VAR q: Seq; it: Item; outer: D.Doc;
 BEGIN
   InitSeq(q);
+  (* runs of assignments: up to a blank line or another statement *)
+  outer := p.assigns; p.assigns := D.NewRun(FALSE);
   LOOP
     IF StartsStatement(p.tok.kind) THEN
+      IF p.tok.blankBefore THEN p.assigns := D.NewRun(FALSE) END;
       Statement(p, it);
+      IF ~it.assign THEN p.assigns := D.NewRun(FALSE) END;
       IF Is(p, S.semicolon) THEN it.doc := D.Cat(it.doc, Tok(p)) END;
       it.endLine := p.last.endLine;
       AddItem(p, q, it, TRUE);
@@ -974,6 +988,7 @@ BEGIN
       EXIT
     END
   END;
+  p.assigns := outer;
   RETURN SeqDoc(q)
 END StatementSeq;
 
@@ -1252,7 +1267,8 @@ BEGIN
   p.mode := opts.mode; p.caseBar := opts.caseBar; p.align := opts.align;
   p.cuddleBegin := opts.cuddleBegin; p.cuddleEnd := opts.cuddleEnd;
   p.lineUp := opts.lineUp; p.single := opts.single; p.nextKind := -1;
-  p.nextRun := NIL; p.comments := D.NewRun(TRUE);
+  p.nextRun := NIL; p.nextAnchor := NIL; p.comments := D.NewRun(TRUE);
+  p.assigns := NIL;
   p.ind := opts.indent;
   p.cont := 2 * opts.indent;
   p.limit := opts.width * 2 DIV 3;

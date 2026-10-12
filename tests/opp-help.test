@@ -26,7 +26,7 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
   --cuddle-end <arg>
       END on that line too, when the whole body is on it, as BEGIN RETURN x END Get: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.
   --align <arg>
-      What to line up, as words separated by commas: const, type, var, field, init, comment and case have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, or CASE bodies; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.
+      What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space.
   --in-place
       Replace each file with its formatted text.
   --output-dir <arg>

@@ -454,7 +454,7 @@ END BeginChoice;
 
 (* What opp lines up itself. *)
 PROCEDURE Pads;
-  VAR run, d: D.Doc;
+  VAR run, d, a, p: D.Doc;
 BEGIN
   Check("pads line up", TwoPads(D.NewRun(FALSE), "x", "y"), 80, "a   x|bbb y|");
   run := D.NewRun(FALSE);
@@ -481,6 +481,15 @@ BEGIN
   d := D.Cat3(d, D.HardLine(), Commented(run, "ccc", FALSE));
   Check("a comment with text after it is left out, with the author's gap", d,
         80, "a  (* c *) b|ccc (* c *)|");
+  run := D.NewRun(FALSE);
+  a := D.Anchor(); p := D.Pad(run, 0); D.SetAnchor(p, a);
+  d := D.Cat3(D.Cat(Tx("f;"), D.Space()), a,
+              D.Cat3(Tx("bbbbbb"), D.Space(), p));
+  a := D.Anchor(); p := D.Pad(run, 0); D.SetAnchor(p, a);
+  d := D.Cat3(D.Cat3(d, Tx("x"), D.HardLine()), a,
+              D.Cat3(Tx("c"), D.Space(), p));
+  Check("a pad whose anchor does not start its line is left out of its run",
+        D.Cat(d, Tx("y")), 80, "f; bbbbbb x|c y|");
   Check("a widening that pushes a later aligned line too far is dropped",
         D.Cat3(D.Cat3(Tx("a"), D.Space(), D.Widen(3)),
                D.Align(D.Group(D.Cat3(Tx("bb"), D.Line(), Tx("cccc")))),
