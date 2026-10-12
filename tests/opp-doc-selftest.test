@@ -16,6 +16,10 @@ ok - nest twice
 ok - align
 ok - align or nest: aligns left of the limit
 ok - align or nest: nests right of the limit
+ok - soft break: none when the first item fits after it
+ok - soft break: a line break when the first item does not fit
+ok - soft break: nothing when flat
+ok - soft break: a first item that fits ignores the items after it
 ok - an empty line has no indentation
 ok - no space at the end of a line
 ok - a flat line at the end of a line leaves no space
@@ -36,8 +40,14 @@ ok - fill counts what follows its last item
 ok - fill: what follows its last item fits exactly
 ok - fill nested continues at its indentation
 ok - fill breaks after an item that did not stay on one line
+ok - fill: an item with a line break inside starts a line
+ok - fill: an item ending in a trailing comment's break shares its line
 ok - fill: a forced break
 ok - fill: a forced blank line
+ok - an undecided choice may be flat
+ok - a choice of flat lines breaks when too long
+ok - a choice of hard lines always breaks
+ok - a choice of hard lines breaks the groups around it
 ok - a comment of one line
 ok - a comment moved right moves its later lines
 ok - a comment moved left moves its later lines
@@ -45,5 +55,10 @@ ok - a comment's lines never move left of column 1
 ok - tabs in a comment's indentation count to multiples of 8
 ok - white space at the end of a comment's lines is dropped
 ok - a comment of several lines breaks its group
+ok - a group ending in a trailing comment's break can be flat
+ok - a trailing comment's break in the middle breaks its group
 ok - a comment of one line does not break its group
-43/43 tests passed.
+ok - a trailing comment does not break the code before it
+ok - a fill puts an item with a trailing comment on the next line if the comment does not fit
+ok - a comment before code on the line is counted
+58/58 tests passed.

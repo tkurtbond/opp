@@ -32,7 +32,8 @@ CONST
   (* node kinds *)
   text = 0; space = 1; line = 2; softLine = 3; hardLine = 4; blankLine = 5;
   fillLine = 6; nest = 7; align = 8; alignOrNest = 9; group = 10;
-  concat = 11; comment = 12; mark = 13;
+  concat = 11; comment = 12; mark = 13; choice = 14; choiceLine = 15;
+  trailBreak = 16; softBreak = 17;
 
   (* modes *)
   flat = 0; broken = 1;
@@ -47,14 +48,16 @@ TYPE
     width: LONGINT;       (* text: its width; comment: its first line's *)
     n: LONGINT;           (* nest, alignOrNest: the indentation added;
                              comment: the column it started at in the
-                             source; mark: the line it was printed on *)
+                             source; mark: the line it was printed on;
+                             choice: 1 if its lines are hard, else 0 *)
     limit: LONGINT;       (* alignOrNest: the last column to align to *)
     multiLine: BOOLEAN;   (* comment: its text holds a line break *)
     hard: BOOLEAN;        (* group: it holds a hard break (Propagate) *)
     child: Doc;           (* nest, align, alignOrNest, group: the content;
                              concat: the first part *)
     last: Doc;            (* concat: the last part *)
-    ref: Doc;             (* fillLine: the mark before the item before it *)
+    ref: Doc;             (* fillLine: the mark before the item before it;
+                             choiceLine: its choice; softBreak: its fill *)
     next: Doc             (* the next part of a concatenation *)
   END;
 
@@ -134,12 +137,55 @@ BEGIN
   RETURN NewNode(hardLine)
 END HardLine;
 
+(* A line break after a trailing comment: always a line break, but it
+   breaks its group only when something follows it in the group, so a
+   group that ends with a trailing comment can still be flat. *)
+PROCEDURE TrailBreak*(): Doc;
+BEGIN
+  RETURN NewNode(trailBreak)
+END TrailBreak;
+
+(* Nothing, or, when broken, a line break if the first item of fill, the
+   fill that follows it, does not fit on the line, and the break would move
+   it left: after the "(" of a list whose first item does not fit after
+   it. A fill of one item is measured with what follows it, up to the next
+   line break. *)
+PROCEDURE SoftBreak*(fill: Doc): Doc;
+VAR d: Doc;
+BEGIN
+  d := NewNode(softBreak); d.ref := fill;
+  RETURN d
+END SoftBreak;
+
 (* A line break and one empty line, however many are asked for in a row;
    none at the start of the text. Its groups are broken. *)
 PROCEDURE BlankLine*(): Doc;
 BEGIN
   RETURN NewNode(blankLine)
 END BlankLine;
+
+(* A choice, decided later, between hard lines and lines that may be flat,
+   for the lines of a structured statement whose layout is known only once
+   it has all been parsed. Undecided, its lines may be flat. *)
+PROCEDURE NewChoice*(): Doc;
+VAR c: Doc;
+BEGIN
+  c := NewNode(choice); c.n := 0;
+  RETURN c
+END NewChoice;
+
+PROCEDURE Decide*(c: Doc; hard: BOOLEAN);
+BEGIN
+  IF hard THEN c.n := 1 ELSE c.n := 0 END
+END Decide;
+
+(* A Line, or a HardLine, as c is decided. *)
+PROCEDURE ChoiceLine*(c: Doc): Doc;
+VAR d: Doc;
+BEGIN
+  d := NewNode(choiceLine); d.ref := c;
+  RETURN d
+END ChoiceLine;
 
 (* d, with its line breaks indented n more. *)
 PROCEDURE Nest*(n: LONGINT; d: Doc): Doc;
@@ -272,24 +318,28 @@ END Fill;
 
 (* ---- Rendering ---- *)
 
-(* Marks every group that holds a hard break, and says whether d (and,
-   along a chain, its siblings) holds one. *)
-PROCEDURE Propagate(d: Doc): BOOLEAN;
-VAR any, h: BOOLEAN;
+(* Marks every group that holds a hard break, and says whether the chain
+   from d holds one: strict counts every TrailBreak, end does not count one
+   that nothing follows in the chain. A group is hard if its content is by
+   end; to what holds the group, it is as its content. *)
+PROCEDURE Propagate(d: Doc; VAR strict, end: BOOLEAN);
+VAR s, e: BOOLEAN;
 BEGIN
-  any := FALSE;
+  strict := FALSE; end := FALSE;
   WHILE d # NIL DO
     CASE d.kind OF
-      hardLine, blankLine: h := TRUE
-    | comment: h := d.multiLine
-    | nest, align, alignOrNest, concat: h := Propagate(d.child)
-    | group: h := Propagate(d.child); d.hard := h
-    ELSE h := FALSE
+      hardLine, blankLine: s := TRUE; e := TRUE
+    | trailBreak: s := TRUE; e := FALSE
+    | choiceLine: s := d.ref.n = 1; e := s
+    | comment: s := d.multiLine; e := s
+    | nest, align, alignOrNest, concat: Propagate(d.child, s, e)
+    | group: Propagate(d.child, s, e); d.hard := e
+    ELSE s := FALSE; e := FALSE
     END;
-    any := any OR h;
+    strict := strict OR s;
+    IF d.next = NIL THEN end := end OR e ELSE end := end OR s END;
     d := d.next
-  END;
-  RETURN any
+  END
 END Propagate;
 
 PROCEDURE Push(VAR stack: Frame; ind: LONGINT; mode: INTEGER; d: Doc; chain: BOOLEAN);
@@ -315,36 +365,55 @@ BEGIN
 END Pop;
 
 (* Whether first, flat, and then the frames of rest, each in its own mode,
-   fit in rem columns up to the first line break that may be taken. rest is
-   only read. *)
-PROCEDURE Fits(first: Doc; rest: Frame; rem: LONGINT): BOOLEAN;
-VAR local: Frame; d: Doc; ind: LONGINT; mode: INTEGER;
+   fit in rem columns up to the first line break that may be taken. A hard
+   break in first that is not the last thing in it means first cannot be
+   flat, so it does not fit; one at its end (a trailing comment's) ends
+   the measure. Unless all is set, a comment that ends the line is not
+   counted: code is not broken to make room for a trailing comment, which
+   could not move to the next line anyway; but a fill separator counts it
+   when it decides whether the item after it joins the line. rest is only
+   read. *)
+PROCEDURE Fits(first: Doc; rest: Frame; rem: LONGINT; all: BOOLEAN): BOOLEAN;
+VAR local: Frame; d: Doc; ind, pending: LONGINT; mode: INTEGER; inFirst: BOOLEAN;
 BEGIN
-  local := NIL;
+  local := NIL; inFirst := TRUE; pending := 0;
   Push(local, 0, flat, first, FALSE);
   LOOP
     IF rem < 0 THEN RETURN FALSE END;
     IF local = NIL THEN
       IF rest = NIL THEN RETURN TRUE END;
+      inFirst := FALSE;
       Push(local, rest.ind, rest.mode, rest.doc, rest.chain);
       rest := rest.below
     END;
     d := Pop(local, ind, mode);
+    (* the comments before d do not end the line *)
+    IF (pending > 0) & ((d.kind IN {text, space, line, fillLine, choiceLine})
+        OR (d.kind = comment) & d.multiLine) THEN
+      DEC(rem, pending); pending := 0
+    END;
     CASE d.kind OF
       text: DEC(rem, d.width)
     | space: DEC(rem)
     | comment:
-        DEC(rem, d.width);
-        IF d.multiLine THEN RETURN rem >= 0 END
+        IF ~d.multiLine & ~all THEN INC(pending, d.width)
+        ELSE
+          DEC(rem, d.width);
+          IF d.multiLine THEN RETURN (rem >= 0) & (~inFirst OR (local = NIL)) END
+        END
     | line, fillLine: IF mode = flat THEN DEC(rem) ELSE RETURN TRUE END
+    | choiceLine:
+        IF (mode = flat) & (d.ref.n = 0) THEN DEC(rem)
+        ELSE RETURN ~inFirst OR (local = NIL)
+        END
     | softLine: IF mode = broken THEN RETURN TRUE END
-    | hardLine, blankLine: RETURN TRUE
+    | hardLine, blankLine, trailBreak: RETURN ~inFirst OR (local = NIL)
     | nest, align, alignOrNest, concat: Push(local, ind, mode, d.child, TRUE)
     | group:
         IF d.hard THEN Push(local, ind, broken, d.child, TRUE)
         ELSE Push(local, ind, mode, d.child, TRUE)
         END
-    | mark:
+    | mark, choice, softBreak:
     END
   END
 END Fits;
@@ -449,9 +518,9 @@ END EmitComment;
 PROCEDURE Render*(d: Doc; width: LONGINT): OppText.Buffer;
 VAR
   r: Renderer; stack, rest: Frame; x, item: Doc; ind, c: LONGINT; mode: INTEGER;
-  h: BOOLEAN;
+  strict, end: BOOLEAN;
 BEGIN
-  h := Propagate(d);
+  Propagate(d, strict, end);
   r.out := OppText.NewBuffer(); r.width := width; r.col := 0; r.lineNo := 0;
   r.pendingBreaks := 0; r.pendingIndent := 0; r.pendingSpaces := 0;
   r.lastLineBlank := FALSE;
@@ -464,8 +533,10 @@ BEGIN
     | space: IF r.pendingBreaks = 0 THEN INC(r.pendingSpaces) END
     | comment: EmitComment(r, x)
     | line: IF mode = flat THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
+    | choiceLine:
+        IF (mode = flat) & (x.ref.n = 0) THEN INC(r.pendingSpaces) ELSE NewLine(r, ind, 1) END
     | softLine: IF mode = broken THEN NewLine(r, ind, 1) END
-    | hardLine: NewLine(r, ind, 1)
+    | hardLine, trailBreak: NewLine(r, ind, 1)
     | blankLine: NewLine(r, ind, 2)
     | fillLine:
         IF mode = flat THEN
@@ -482,11 +553,26 @@ BEGIN
           ELSE
             rest := stack.below
           END;
-          IF (r.pendingBreaks = 0) & Fits(item, rest, width - Column(r) - 1) THEN
+          IF (r.pendingBreaks = 0) & Fits(item, rest, width - Column(r) - 1, TRUE) THEN
             INC(r.pendingSpaces)
           ELSE
             NewLine(r, ind, 1)
           END
+        END
+    | softBreak:
+        IF (mode = broken) & (x.ref.child # NIL) & (Column(r) > ind) THEN
+          item := x.ref.child;
+          IF item.next = NIL THEN
+            item := stack.doc;
+            IF stack.chain & (item.next # NIL) THEN
+              NEW(rest); rest^ := stack^; rest.doc := item.next
+            ELSE
+              rest := stack.below
+            END
+          ELSE
+            rest := NIL
+          END;
+          IF ~Fits(item, rest, width - Column(r), FALSE) THEN NewLine(r, ind, 1) END
         END
     | nest: Push(stack, ind + x.n, mode, x.child, TRUE)
     | align: Push(stack, Column(r), mode, x.child, TRUE)
@@ -496,13 +582,14 @@ BEGIN
         ELSE Push(stack, ind + x.n, mode, x.child, TRUE)
         END
     | group:
-        IF (mode = flat) OR ~x.hard & Fits(x.child, stack, width - Column(r)) THEN
+        IF (mode = flat) OR ~x.hard & Fits(x.child, stack, width - Column(r), FALSE) THEN
           Push(stack, ind, flat, x.child, TRUE)
         ELSE
           Push(stack, ind, broken, x.child, TRUE)
         END
     | concat: Push(stack, ind, mode, x.child, TRUE)
     | mark: x.n := NextLine(r)
+    | choice:
     END
   END;
   IF r.out.len > 0 THEN OppText.AppendChar(r.out, 0AX) END;

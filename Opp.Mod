@@ -3,16 +3,14 @@ MODULE Opp;
 (* opp, the Oberon pretty printer: the command line.
 
    opp [options] [file ...] formats Oberon-2 modules written for poc or voc
-   (PLAN.md, "Command line"). It does not format yet: it takes every option
-   and its file names, and --tokens, a debugging aid, lists each file's
-   tokens and comments as OppScanner sees them. *)
+   (PLAN.md, "Command line"), writing each to standard output; --tokens,
+   a debugging aid, lists each file's tokens and comments as OppScanner sees
+   them instead. --in-place and --check, and the check that the output has
+   the input's tokens and comments, are Phase 4's. *)
 
-IMPORT ArgParser, Err, Files, In, Out, Platform, OppText, OppScanner;
+IMPORT ArgParser, Err, Files, In, Out, Platform, OppText, OppScanner, OppFormat;
 
 CONST
-  (* statement modes *)
-  onePerLine = 0; pack = 1; keepLines = 2;
-
   (* exit statuses (AGENTS.md, "Exit statuses") *)
   failureStatus = 1;
 
@@ -25,9 +23,8 @@ TYPE
 
 VAR
   parser: ArgParser.Parser;
-  width, indent: LONGINT;
-  mode: INTEGER;
-  moduleIndent, inPlace, check, tokens: BOOLEAN;
+  opts: OppFormat.Options;
+  inPlace, check, tokens: BOOLEAN;
   status: INTEGER;   (* the exit status so far *)
   files, lastFile: FileName;
   input: OppText.Buffer;
@@ -35,32 +32,32 @@ VAR
 
 PROCEDURE SetWidth(val: LONGINT): BOOLEAN;
 BEGIN
-  width := val; RETURN TRUE
+  opts.width := val; RETURN TRUE
 END SetWidth;
 
 PROCEDURE SetIndent(val: LONGINT): BOOLEAN;
 BEGIN
-  indent := val; RETURN TRUE
+  opts.indent := val; RETURN TRUE
 END SetIndent;
 
 PROCEDURE SetOnePerLine(): BOOLEAN;
 BEGIN
-  mode := onePerLine; RETURN TRUE
+  opts.mode := OppFormat.onePerLine; RETURN TRUE
 END SetOnePerLine;
 
 PROCEDURE SetPack(): BOOLEAN;
 BEGIN
-  mode := pack; RETURN TRUE
+  opts.mode := OppFormat.pack; RETURN TRUE
 END SetPack;
 
 PROCEDURE SetKeepLines(): BOOLEAN;
 BEGIN
-  mode := keepLines; RETURN TRUE
+  opts.mode := OppFormat.keepLines; RETURN TRUE
 END SetKeepLines;
 
 PROCEDURE SetNoModuleIndent(): BOOLEAN;
 BEGIN
-  moduleIndent := FALSE; RETURN TRUE
+  opts.moduleIndent := FALSE; RETURN TRUE
 END SetNoModuleIndent;
 
 PROCEDURE SetInPlace(): BOOLEAN;
@@ -215,9 +212,20 @@ BEGIN
   IF s.error THEN ReportError(name, s.errorLine, s.errorColumn, s.errorMessage) END
 END ListTokens;
 
+(* The formatted text of a file on standard output, or its error. *)
+PROCEDURE FormatFile(name: OppText.Text; text: OppText.Buffer);
+VAR out: OppText.Buffer; line, column, i: LONGINT; msg: ARRAY 120 OF CHAR;
 BEGIN
-  width := 80; indent := 2; mode := onePerLine;
-  moduleIndent := TRUE; inPlace := FALSE; check := FALSE; tokens := FALSE;
+  IF OppFormat.Format(text.chars, text.len, opts, out, line, column, msg) THEN
+    FOR i := 0 TO out.len - 1 DO Out.Char(out.chars[i]) END
+  ELSE
+    ReportError(name, line, column, msg)
+  END
+END FormatFile;
+
+BEGIN
+  opts.width := 80; opts.indent := 2; opts.mode := OppFormat.onePerLine;
+  opts.moduleIndent := TRUE; inPlace := FALSE; check := FALSE; tokens := FALSE;
   status := 0;
   files := NIL; lastFile := NIL;
 
@@ -236,7 +244,7 @@ BEGIN
     "Keep statements and declarations on shared lines where the source has them, while they fit.",
     SetKeepLines));
   parser.AddOption(ArgParser.MakeOption(0X, "no-module-indent",
-    "Start a module's declarations and statements at column 1.", SetNoModuleIndent));
+    "Start a module's declarations at column 1; its statements stay indented.", SetNoModuleIndent));
   parser.AddOption(ArgParser.MakeOption(0X, "in-place",
     "Replace each file with its formatted text.", SetInPlace));
   parser.AddOption(ArgParser.MakeOption("c", "check",
@@ -252,9 +260,13 @@ BEGIN
     stdin := "-";
     IF AddFile(0, stdin) THEN END
   END;
-  IF ~tokens THEN Fail("formatting is not implemented yet (PLAN.md, Phase 3)") END;
+  IF inPlace OR check THEN Fail("--in-place and --check are not implemented yet (PLAN.md, Phase 4)") END;
   WHILE files # NIL DO
-    IF ReadInput(files.name, input) THEN ListTokens(DisplayName(files.name), input) END;
+    IF ReadInput(files.name, input) THEN
+      IF tokens THEN ListTokens(DisplayName(files.name), input)
+      ELSE FormatFile(DisplayName(files.name), input)
+      END
+    END;
     files := files.next
   END;
   Out.Flush;

@@ -12,3 +12,4 @@
 /Opp
 /poc-build/
 /OppDocTest
+!/tools/*.c

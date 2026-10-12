@@ -1,0 +1,7 @@
+# A syntax error, an unclosed parenthesis: opp reports where, writes nothing,
+# and exits 1.
+program Opp
+arg tests/data/fmt-error-paren.Mod
+status 1
+output
+tests/data/fmt-error-paren.Mod:3:14: expected ')', found ';'

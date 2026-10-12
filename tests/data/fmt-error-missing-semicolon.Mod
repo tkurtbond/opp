@@ -1,0 +1,4 @@
+MODULE Bad1;
+  VAR x: INTEGER
+BEGIN
+END Bad1.

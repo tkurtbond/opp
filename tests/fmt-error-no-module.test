@@ -1,0 +1,7 @@
+# A syntax error, a file that is not a module: opp reports where, writes nothing,
+# and exits 1.
+program Opp
+arg tests/data/fmt-error-no-module.Mod
+status 1
+output
+tests/data/fmt-error-no-module.Mod:1:1: expected MODULE, found an identifier

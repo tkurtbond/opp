@@ -11,10 +11,9 @@ statements one per line, packs short ones onto shared lines, or keeps the
 author's own grouping. Before it writes anything it checks that its output
 has exactly the tokens and comments of its input.
 
-**Status: under construction.** Phases 0 (the repository, the builds and
-the command line), 1 (the scanner, which `--tokens` shows) and 2 (the
-layout engine) are done; opp does not format yet. `PLAN.md` has the design
-and the phases.
+**Status: under construction.** opp formats to standard output; the
+safety check, `--in-place` and `--check` come next (Phase 4 of
+`PLAN.md`, which has the design and the phases).
 
 ## Usage
 
@@ -32,7 +31,7 @@ standard output, unless `--in-place` or `--check` is given.
 | `-1`, `--one-per-line` | every statement on its own line (the default) |
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
-| `--no-module-indent` | start a module's declarations and statements at column 1 |
+| `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
@@ -50,7 +49,7 @@ opp is written in Oberon-2 and builds with either compiler. It needs
 `make -f pocGNUmakefile install` there for poc.
 
 ```sh
-make                 # build Opp with voc, statically linked
+make                 # build Opp with voc
 make test            # build, then run the fixtures in tests/
 make install         # copy Opp to ~/local/bin as opp (BINDIR to change)
 make uninstall       # remove ~/local/bin/opp
@@ -60,3 +59,8 @@ make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp
 
 The poc and voc builds install to the same place under the same name, so
 whichever was installed last replaces the other.
+
+The voc build links dynamically, with `tools/voc-heap-gc-spill.c` (from
+Peaseblossom) in place of voc's `Heap_GC`: without it, voc's garbage
+collector can free objects still in use, and opp garbled or crashed on
+large files.

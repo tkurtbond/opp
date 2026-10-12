@@ -39,7 +39,7 @@ it writes each formatted file to standard output in turn, unless
 | `-1`, `--one-per-line` | every statement on its own line (the default) |
 | `-p`, `--pack` | pack short statements and declarations onto shared lines |
 | `-k`, `--keep-lines` | keep statements and declarations on shared lines where the source has them, while they fit |
-| `--no-module-indent` | start a module's declarations and statements at column 1 |
+| `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--in-place` | replace each file with its formatted text |
 | `-c`, `--check` | write nothing; exit 1 and name each file that would change |
 | `--tokens` | list each file's tokens and comments instead (a debugging aid) |
@@ -131,9 +131,19 @@ what follows a group [3]; "References" below has the sources:
 | `Group d` | `d` flat if it fits, else broken | |
 | `Concat` | its children in order | |
 | `Comment` | a comment, its later lines re-indented | |
+| `TrailBreak` | (a trailing comment's line break) | a line break; breaks its group only if something follows it there |
+| `SoftBreak f` | nothing | a line break if the first item of the fill `f` after it does not fit, and the break moves it left |
+| `Choice`, `ChoiceLine` | spaces | line breaks; the parser decides each choice before rendering |
 
 - A group is laid out flat when it, and what follows it up to the next
-  possible line break, fits in the rest of the line. A group holding a
+  possible line break, fits in the rest of the line. A comment that ends
+  the line is not counted: code is never broken to make room for a
+  trailing comment, which could not move anyway. A fill separator does
+  count it, so a statement whose trailing comment would overflow starts
+  the next line instead of joining this one.
+- `SoftBreak` goes after the `(` of a parameter or argument list: when the
+  first item does not fit after the `(`, the list starts on the next line,
+  nested, instead of breaking inside that item. A group holding a
   `HardLine`, a `BlankLine` or a multi-line comment is always broken; this
   is worked out once, before rendering.
 - `FillLine` gives Prettier's `fill`: each separator breaks only when the
@@ -200,7 +210,9 @@ BEGIN
 END M.
 ```
 
-The module's contents are nested `s`, except with `--no-module-indent`.
+The module's contents are nested `s`; with `--no-module-indent` its
+declarations start at column 1, but the statements after `BEGIN` are still
+nested `s`, as a procedure's are.
 `BEGIN` and `END M.` are at the module's column. The import list fills
 its lines, continued at `2s`.
 
@@ -229,7 +241,11 @@ types as in a procedure heading. System flags follow their keyword:
   END Name;
 ```
 
-Formal parameter sections fill their lines aligned after `(`. The
+Formal parameter sections fill their lines aligned after `(`; when the
+first section does not fit after the `(`, they start on the next line,
+nested `2s`, as in `PROCEDURE ^ Forward(` then `    x: INTEGER): INTEGER;`.
+A code procedure's text moves to the next line, nested `2s`, when it does
+not fit. The
 procedure's declarations are nested `s`; `BEGIN` and `END Name;` are at the
 procedure's column; its statements are nested `s`. Forward declarations
 print as `PROCEDURE ^ Name(...);`, with a space after the `^` as poc
@@ -240,7 +256,9 @@ external ones as
 
 **Blank lines between procedures.** opp keeps the author's blank lines,
 and adds one between two consecutive procedure declarations at the same
-level when the source has none, if either of them has a body. A run of
+level when the source has none, if either of them has a body, and between
+a procedure with a body and a declaration section after it (poc allows
+declarations after procedures). A run of
 forward or external declarations is left as written. When a procedure has
 comments on lines of their own before it, the blank line goes before the
 comments, which belong to the procedure.
@@ -261,16 +279,15 @@ CASE ch OF                       WITH v: T DO
 | "b", "c" .. "e":               | v: U DO
     IF ... END;                    ...
     y := 2                       ELSE
-ELSE                               ...
-  z := 3                         END
-END
+ELSE z := 3                        ...
+END                              END
 ```
 
 A `CASE` arm's labels are at the column after `|` and its padding; a body
 that is one statement and fits goes on the labels' line, any other body is
 nested `s` below them. The `ELSE` of a `CASE` takes its body on its own line
-by the same rule. `CASE` and a `WITH` with more than one guard are always
-broken.
+by the same rule: `ELSE z := 3` when it is one statement that fits.
+`CASE` and a `WITH` with more than one guard are always broken.
 
 **One per line** (`-1`, the default): every statement starts its own line,
 and every structured statement is broken as shown.
@@ -399,10 +416,10 @@ Each phase ends with `make test`, `make -f pocGNUmakefile test-poc` and
 - Found on the way: voc passes a row of an open two-dimensional array
   wrongly (vishap-bugs 11; `AGENTS.md`).
 
-### Phase 3: parser and printer
+### Phase 3: parser and printer (done 2026-10-12)
 
-In this order, each with fixtures in `tests/data/` formatted at a narrow
-and a wide width, in all three statement modes:
+Planned, in this order, each with fixtures in `tests/data/` formatted at
+a narrow and a wide width, in all three statement modes:
 
 1. Modules, imports, declaration sections, types.
 2. Procedures: headings, receivers, forward, external and code
@@ -413,6 +430,39 @@ and a wide width, in all three statement modes:
 5. Comments and blank lines everywhere; trailing semicolons; empty
    statements and arms.
 6. Syntax errors: position and message, nothing written, exit 1.
+
+Done:
+
+- `OppFormat.Mod`, a recursive-descent parser for the union of poc's and
+  voc's syntax that builds the document as it goes, and `Opp.Mod`
+  formatting each file to standard output. Fixtures `fmt-*` format seven
+  inputs (declarations, procedures, statements, expressions, comments,
+  poc's and voc's extensions) one per line, packed, kept and at width 40;
+  `fmt-indent-4`, `fmt-no-module-indent` and `fmt-stdin` the options and
+  standard input; `fmt-error-*` five syntax errors. `opp-not-implemented`
+  went; `opp-in-place-not-implemented` stands until Phase 4.
+- Structured statements are `Choice`s: the parser decides before rendering
+  whether each is on one line (fits, and the mode allows it) or broken, so
+  a body's layout does not depend on the renderer's guesses.
+- `TrailBreak` for a trailing comment's line break, which breaks only the
+  groups something follows it in; comments that lead an item go outside
+  its groups (`ItemLead`), so they never force the item itself broken.
+- `SoftBreak` (above), and trailing comments not counted when fitting
+  code; `OppDocTest` has 58 checks, each new one proved by planting the
+  bug it targets.
+- **voc's garbage collector freed objects in use** (callee-saved registers
+  not scanned), garbling or crashing opp on large files. The voc build now
+  links dynamically with `tools/voc-heap-gc-spill.c`, Peaseblossom's
+  replacement `Heap_GC` (`GNUmakefile`; `AGENTS.md`).
+- **One parsing call per expression**: voc's C evaluates a call's
+  arguments in any order, so `D.Cat(Tok(p), Expr(p))` can consume tokens
+  out of order; each parsing call is its own statement (`AGENTS.md`).
+- Checked over the 644-file corpus at widths 30 to 120 in all three modes:
+  the same tokens and comments as the input, idempotent, the voc and poc
+  builds byte-identical; the only errors are three invalid sources
+  (`TryExtension.Mod`, `TryLinkedList.Mod`, voc's `HeapDump.Mod`, which
+  voc rejects too). At width 80 the lines still too long are long strings,
+  comments, and code followed by a trailing comment.
 
 ### Phase 4: the program and the safety check
 

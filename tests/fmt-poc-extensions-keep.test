@@ -1,0 +1,33 @@
+# Formatting poc's extensions: initializers, literals, external procedures,
+# read-only parameters, declarations after procedures,
+# keeping the source's lines (--keep-lines).
+program Opp
+arg -k
+arg tests/data/fmt-poc-extensions.Mod
+status 0
+output
+MODULE PocExtensions;
+  IMPORT SYSTEM;
+  CONST SS$_NORMAL = 1; IO$_READVBLK = 49; origin = Point{x := 0, y := 0};
+  TYPE
+    Point = RECORD
+      x, y: INTEGER := 0
+    END;
+    Vector = ARRAY 3 OF INTEGER;
+  VAR count, total: INTEGER := 0; v: Vector;
+  PROCEDURE ["C"] malloc(size: SYSTEM.ADDRESS): SYSTEM.ADDRESS;
+  PROCEDURE ["C", "write"] Write*(fd: INTEGER; buf: SYSTEM.ADDRESS;
+                                  n: SYSTEM.ADDRESS): SYSTEM.ADDRESS;
+
+  PROCEDURE Show(s-: ARRAY OF CHAR; p-: Point);
+  BEGIN
+    ASSERT(s[0] # 0X, 20)
+  END Show;
+
+  CONST late = 2;
+  VAR p: Point;
+BEGIN
+  p := Point{x := 1, y := 2}; v := Vector{1, 2, 3};
+  v := Vector{[0..1]: 7, [2]: 9};
+  p := Point{x := late, y := count}
+END PocExtensions.

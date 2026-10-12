@@ -82,6 +82,14 @@ BEGIN
   RETURN D.Fill(f)
 END List;
 
+(* A soft break before List(n), aligned. *)
+PROCEDURE SoftList(n: INTEGER): D.Doc;
+VAR l: D.Doc;
+BEGIN
+  l := List(n);
+  RETURN D.Cat(D.SoftBreak(l), D.Align(l))
+END SoftList;
+
 PROCEDURE Basics;
 VAR cafe, want: ARRAY 16 OF CHAR;
 BEGIN
@@ -114,6 +122,16 @@ BEGIN
   Check("align or nest: nests right of the limit",
     D.Cat3(Tx("LongName("), D.AlignOrNest(4, 5, Pair("aaa", "bbb")), Tx(")")), 12,
     "LongName(aaa|    bbb)|");
+  Check("soft break: none when the first item fits after it",
+    D.Cat3(Tx("Proc("), D.Nest(4, SoftList(2)), Tx(")")), 11, "Proc(aa,|     bb)|");
+  Check("soft break: a line break when the first item does not fit",
+    D.Cat3(Tx("LongerName("), D.Nest(4, SoftList(2)), Tx(")")), 12,
+    "LongerName(|    aa, bb)|");
+  Check("soft break: nothing when flat",
+    D.Group(D.Cat3(Tx("LongerName("), D.Nest(4, SoftList(2)), Tx(")"))), 80,
+    "LongerName(aa, bb)|");
+  Check("soft break: a first item that fits ignores the items after it",
+    D.Cat3(Tx("Name("), D.Nest(4, SoftList(3)), Tx(")")), 9, "Name(aa,|     bb,|     cc)|");
   Check("an empty line has no indentation",
     D.Nest(4, D.Cat3(Tx("a"), D.BlankLine(), Tx("b"))), 80, "a||    b|");
   Check("no space at the end of a line",
@@ -173,12 +191,48 @@ BEGIN
   D.Add(f, Tx("y"));
   Check("fill breaks after an item that did not stay on one line", D.Fill(f), 8, "x;|long|tail;|y|");
   D.InitFill(f);
+  D.Add(f, Tx("a;")); D.Sep(f);
+  D.Add(f, D.Cat3(Tx("R = RECORD"), D.Nest(2, D.Cat(D.HardLine(), Tx("x: T"))), D.Cat(D.HardLine(), Tx("END;"))));
+  Check("fill: an item with a line break inside starts a line", D.Fill(f), 80, "a;|R = RECORD|  x: T|END;|");
+  D.InitFill(f);
+  D.Add(f, Tx("a;")); D.Sep(f); D.Add(f, Tx("b;")); D.Add(f, D.Cat3(D.Space(), D.Comment(T("(* c *)"), 1), D.HardLine()));
+  D.Sep(f); D.Add(f, Tx("d"));
+  Check("fill: an item ending in a trailing comment's break shares its line", D.Fill(f), 80, "a; b; (* c *)|d|");
+  D.InitFill(f);
   D.Add(f, Tx("a;")); D.Break(f); D.Add(f, Tx("b;")); D.Sep(f); D.Add(f, Tx("c"));
   Check("fill: a forced break", D.Fill(f), 80, "a;|b; c|");
   D.InitFill(f);
   D.Add(f, Tx("a;")); D.BlankBreak(f); D.Add(f, Tx("b"));
   Check("fill: a forced blank line", D.Fill(f), 80, "a;||b|")
 END Fills;
+
+PROCEDURE Choices;
+VAR c: D.Doc;
+  PROCEDURE If(c: D.Doc): D.Doc;
+  BEGIN
+    RETURN D.Group(D.Cat3(Tx("IF a THEN"), D.Nest(2, D.Cat(D.ChoiceLine(c), Tx("b"))),
+      D.Cat(D.ChoiceLine(c), Tx("END"))))
+  END If;
+BEGIN
+  c := D.NewChoice();
+  Check("an undecided choice may be flat", If(c), 80, "IF a THEN b END|");
+  c := D.NewChoice(); D.Decide(c, FALSE);
+  Check("a choice of flat lines breaks when too long", If(c), 10, "IF a THEN|  b|END|");
+  c := D.NewChoice(); D.Decide(c, TRUE);
+  Check("a choice of hard lines always breaks", If(c), 80, "IF a THEN|  b|END|");
+  c := D.NewChoice(); D.Decide(c, TRUE);
+  Check("a choice of hard lines breaks the groups around it",
+    D.Group(D.Cat3(Tx("x"), D.Line(), If(c))), 80, "x|IF a THEN|  b|END|")
+END Choices;
+
+PROCEDURE FillWithComment(): D.Doc;
+VAR f: D.FillBuilder;
+BEGIN
+  D.InitFill(f);
+  D.Add(f, Tx("a;")); D.Sep(f);
+  D.Add(f, Tx("b;")); D.Add(f, D.Cat3(D.Space(), D.Comment(T("(* long comment *)"), 1), D.TrailBreak()));
+  RETURN D.Fill(f)
+END FillWithComment;
 
 PROCEDURE Comments;
 BEGIN
@@ -197,13 +251,27 @@ BEGIN
     D.Comment(T("(* a   |  |   *)"), 1), 80, "(* a||   *)|");
   Check("a comment of several lines breaks its group",
     D.Group(D.Cat3(Tx("a"), D.Line(), D.Comment(T("(* x|y *)"), 1))), 80, "a|(* x|y *)|");
+  Check("a group ending in a trailing comment's break can be flat",
+    D.Cat(D.Group(D.Cat(D.Cat3(Tx("VAR"), D.Line(), Tx("x;")), D.Cat3(D.Space(), D.Comment(T("(* c *)"), 1), D.TrailBreak()))), Tx("y")),
+    80, "VAR x; (* c *)|y|");
+  Check("a trailing comment's break in the middle breaks its group",
+    D.Group(D.Cat(D.Cat3(Tx("F(a,"), D.Space(), D.Comment(T("(* c *)"), 1)), D.Cat3(D.TrailBreak(), D.Line(), Tx("b)")))),
+    80, "F(a, (* c *)|b)|");
   Check("a comment of one line does not break its group",
-    D.Group(D.Cat3(Tx("a"), D.Line(), D.Comment(T("(* x *)"), 1))), 80, "a (* x *)|")
+    D.Group(D.Cat3(Tx("a"), D.Line(), D.Comment(T("(* x *)"), 1))), 80, "a (* x *)|");
+  Check("a trailing comment does not break the code before it",
+    D.Group(D.Cat3(Tx("x :="), D.Line(), D.Cat(Tx("1;"), D.Cat3(D.Space(), D.Comment(T("(* long comment *)"), 1), D.TrailBreak())))), 12,
+    "x := 1; (* long comment *)|");
+  Check("a fill puts an item with a trailing comment on the next line if the comment does not fit",
+    FillWithComment(), 20, "a;|b; (* long comment *)|");
+  Check("a comment before code on the line is counted",
+    D.Group(D.Cat3(Tx("x :="), D.Line(), D.Cat3(D.Comment(T("(* long comment *)"), 1), D.Space(), Tx("1;")))), 12,
+    "x :=|(* long comment *) 1;|")
 END Comments;
 
 BEGIN
   passed := 0; total := 0;
-  Basics; Indentation; Groups; LineBreaks; Fills; Comments;
+  Basics; Indentation; Groups; LineBreaks; Fills; Choices; Comments;
   Out.Int(passed, 0); Out.Char("/"); Out.Int(total, 0); Out.String(" tests passed."); Out.Ln;
   Out.Flush;
   IF passed # total THEN Platform.Exit(1) END

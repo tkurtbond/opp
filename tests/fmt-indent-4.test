@@ -1,0 +1,48 @@
+# Indentation by 4 (--indent 4).
+program Opp
+arg -i
+arg 4
+arg tests/data/fmt-procedures.Mod
+status 0
+output
+MODULE Procedures;
+    TYPE
+        T = POINTER TO TDesc;
+        TDesc = RECORD
+            n: INTEGER
+        END;
+    PROCEDURE ^ Forward(x: INTEGER): INTEGER;
+    PROCEDURE ^ Another;
+
+    PROCEDURE Empty;
+    END Empty;
+
+    PROCEDURE (t: T) Method*(VAR a, b: ARRAY OF CHAR; c: LONGINT;
+                             VAR done: BOOLEAN): INTEGER;
+        VAR i: INTEGER;
+        PROCEDURE Nested(k: INTEGER): INTEGER;
+        BEGIN
+            RETURN k * 2
+        END Nested;
+    BEGIN
+        RETURN Nested(t.n)
+    END Method;
+
+    (* a comment before a procedure *)
+    PROCEDURE Forward(x: INTEGER): INTEGER;
+    BEGIN
+        RETURN x
+    END Forward;
+
+    PROCEDURE Another;
+    BEGIN
+    END Another;
+
+    PROCEDURE WithManyParameters(firstParameter: INTEGER;
+                                 secondParameter: LONGINT;
+                                 VAR third: ARRAY OF CHAR;
+                                 fourth, fifth: REAL): BOOLEAN;
+    BEGIN
+        RETURN TRUE
+    END WithManyParameters;
+END Procedures.

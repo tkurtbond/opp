@@ -1,0 +1,7 @@
+# A syntax error, a missing END: opp reports where, writes nothing,
+# and exits 1.
+program Opp
+arg tests/data/fmt-error-missing-end.Mod
+status 1
+output
+tests/data/fmt-error-missing-end.Mod:4:5: expected END, found an identifier

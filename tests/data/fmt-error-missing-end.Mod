@@ -1,0 +1,4 @@
+MODULE Bad2;
+BEGIN
+  IF x THEN y := 1
+END Bad2.

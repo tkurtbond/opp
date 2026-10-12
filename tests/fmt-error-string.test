@@ -1,0 +1,7 @@
+# A syntax error, an unterminated string: opp reports where, writes nothing,
+# and exits 1.
+program Opp
+arg tests/data/fmt-error-string.Mod
+status 1
+output
+tests/data/fmt-error-string.Mod:3:8: unterminated string

@@ -1,6 +1,7 @@
 VOC=voc
 VOCFLAGS=-f
-VOCMAIN=-M
+VOCMAIN=-m
+CC ?= cc
 
 # Modules shared between repos, ArgParser.Mod and Err.Mod (both installed
 # by the ArgParser repo), are in the directories in VOC_OBERON_MODULES
@@ -19,9 +20,20 @@ endif
 
 PROGRAMS=Opp OppDocTest
 
-# make install copies Opp to BINDIR, under the name opp.  VOCMAIN is -M,
-# which links statically, so it doesn't need voc's libvoc-O2.so to run.
+# make install copies Opp to BINDIR, under the name opp.
 BINDIR ?= $(HOME)/local/bin
+
+# voc's collector misses a pointer held only in a callee-saved register
+# (vishap-bugs 14), which garbled or crashed opp on large files. As
+# Peaseblossom's Stage 0 does, the programs are linked with a Heap_GC that
+# stores those registers on the stack and then calls libvoc's: voc adds
+# LDFLAGS to its link command, ahead of libvoc, and dlsym is in libdl on
+# Linux. That needs a dynamic link, so VOCMAIN is -m, not -M, and the
+# programs need voc's libvoc-O2.so to run (found without LD_LIBRARY_PATH on
+# Linux, as voc links it).
+SPILL = tools/voc-heap-gc-spill.o
+SPILL_LIBS = $(if $(filter Linux,$(shell uname -s)),-ldl)
+export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) $(LDFLAGS)
 
 .PHONY: all clean test test-verbose install uninstall
 
@@ -35,7 +47,9 @@ Opp: ArgParser.o
 ArgParser.o: Err.o
 
 # opp's own modules, each built before the modules that import it.
-Opp: Err.o OppText.o OppScanner.o
+Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o
+
+OppFormat.o: OppText.o OppScanner.o OppDoc.o
 
 OppScanner.o: OppText.o
 
@@ -45,8 +59,12 @@ OppDocTest: OppText.o OppDoc.o
 OppDoc.o: OppText.o
 
 
-%: %.Mod
+%: %.Mod $(SPILL)
 	$(VOC) $(VOCFLAGS) $(VOCMAIN) $<
+	@nm $@ | grep -q ' T Heap_GC$$' || { echo "$@ was linked without $(SPILL)'s Heap_GC" >&2; rm -f $@; exit 1; }
+
+$(SPILL): tools/voc-heap-gc-spill.c
+	$(CC) -fPIC -c $< -o $@
 
 %.o : %.Mod
 	$(VOC) $(VOCFLAGS) -s $<
@@ -69,5 +87,5 @@ uninstall:
 	rm -f $(BINDIR)/opp
 
 clean:
-	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym
+	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym $(SPILL)
 	-rm -rfv *.dSYM

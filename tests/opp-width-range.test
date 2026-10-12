@@ -18,7 +18,7 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
   -k, --keep-lines
       Keep statements and declarations on shared lines where the source has them, while they fit.
   --no-module-indent
-      Start a module's declarations and statements at column 1.
+      Start a module's declarations at column 1; its statements stay indented.
   --in-place
       Replace each file with its formatted text.
   -c, --check

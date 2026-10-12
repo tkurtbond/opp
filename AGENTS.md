@@ -100,6 +100,16 @@ poc accept:
 - **Comments nest in Oberon.** A comment in opp's source that mentions
   the comment delimiters in quotes opens a nested comment and swallows the
   rest of the module; describe them in words instead.
+- **Make at most one parsing call in each expression.** voc compiles to C,
+  which evaluates a call's arguments in any order, so in
+  `D.Cat(Tok(p), Expr(p))` the expression may be parsed before the token
+  is taken. Assign each parsing call's result to a variable first. poc
+  evaluates left to right, so only the voc build goes wrong.
+- **voc's garbage collector misses pointers held in callee-saved
+  registers** and frees objects still in use. The voc build links
+  dynamically (`VOCMAIN=-m`) with `tools/voc-heap-gc-spill.c`, which
+  replaces `Heap_GC`; the `GNUmakefile` checks that the executable defines
+  it. Keep both.
 - Strings are `OppText.Text` (`POINTER TO ARRAY OF CHAR`, allocated to
   fit), never fixed arrays that could truncate a long comment or string.
 

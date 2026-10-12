@@ -1,0 +1,34 @@
+# Formatting expressions: operators, calls, sets, long lists,
+# one statement per line (the default) at width 80.
+program Opp
+arg tests/data/fmt-expressions.Mod
+status 0
+output
+MODULE Expressions;
+  PROCEDURE P;
+  BEGIN
+    x := a + b * c - d DIV e MOD f;
+    y := -a;
+    z := ~p & (q OR r);
+    b := (x = y) # (c < d);
+    b := x IN {1, 3..5, 7};
+    b := p IS Leaf;
+    s := {};
+    v := a.b[i, j]^.c(T).d;
+    w := F(G(x), H(y, z));
+    e := f();
+    n := NIL;
+    cond := (p.current.kind # Lexer.period)
+        & (p.current.kind # Lexer.leftBracket) & (p.current.kind # Lexer.caret)
+        & (p.current.kind # Lexer.leftParen);
+    total := firstAmount + secondAmount * factor - thirdAmount DIV divisor
+        + fourthAmount * anotherFactor;
+    Diagnostics.Error(p.current.line, p.current.column,
+                      "a formal parameter cannot have an export mark");
+    result := SomeModule.SomeFunction(firstArgument, secondArgument,
+                                      thirdArgument, fourthArgument,
+                                      fifthArgument);
+    s := "a string with 'single' quotes";
+    t := 'a string with "double" quotes'
+  END P;
+END Expressions.

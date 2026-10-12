@@ -1,0 +1,7 @@
+# A syntax error, a missing semicolon: opp reports where, writes nothing,
+# and exits 1.
+program Opp
+arg tests/data/fmt-error-missing-semicolon.Mod
+status 1
+output
+tests/data/fmt-error-missing-semicolon.Mod:3:1: expected ';', found BEGIN

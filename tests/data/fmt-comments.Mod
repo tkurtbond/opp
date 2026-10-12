@@ -1,0 +1,38 @@
+(* A comment before the module *)
+
+(* and another, after a blank line *)
+MODULE Comments; (* trailing the module heading *)
+
+  (* leading the import list *)
+  IMPORT Out;
+
+  VAR x: INTEGER; (* trailing a declaration *)
+
+  PROCEDURE P;
+  BEGIN
+    (* leading the first statement *)
+    x := 1; (* trailing a statement *)
+    x := 2; (* a trailing comment
+               on two lines *)
+
+    x := (* in the middle *) 3;;
+    ; x := 4;
+    IF x > 0 THEN
+      x := 5
+      (* at the end of a body *)
+    END;
+    CASE x OF
+    | 1: x := 6
+    | (* an empty arm, with a comment *)
+    | 2: x := 7;
+    END;
+          (* a comment
+             far to the right,
+                with its own shape *)
+    x := 8
+  END P;
+BEGIN
+  P
+  (* at the end of the module body *)
+END Comments. Text after the module's end is kept as it is   
+  (* even this *)

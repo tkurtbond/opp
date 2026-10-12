@@ -43,7 +43,7 @@ BUILDDIR = poc-build
 PROGRAMS = Opp OppDocTest
 # opp's own modules, which poc compiles from source with the programs
 # that import them.
-MODULES = OppText OppScanner OppDoc
+MODULES = OppText OppScanner OppDoc OppFormat
 BINDIR ?= $(HOME)/local/bin
 
 .PHONY: all clean test-poc test-verbose install uninstall

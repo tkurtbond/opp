@@ -1,0 +1,52 @@
+# Formatting declarations: sections, types, records, procedure types,
+# at width 40.
+program Opp
+arg -w
+arg 40
+arg tests/data/fmt-declarations.Mod
+status 0
+output
+MODULE Declarations; (* modules, imports, declaration sections, types *)
+  IMPORT Out, D := Diagnostics, Strings,
+      Files, Texts, Oberon, SYSTEM,
+      Platform, Args;
+  CONST
+    one = 1;
+    two = one
+        + 1; (* trailing comment *)
+    name* = "declarations";
+
+    big = 0FFFFH;
+    ch = 41X;
+    pi = 3.14159D0;
+  TYPE
+    Ptr* = POINTER TO Rec;
+    Rec* = RECORD (Base)
+      x-, y*: INTEGER;
+      (* a leading comment on a field list *)
+      next: Ptr;
+    END;
+    Empty = RECORD END;
+    Matrix = ARRAY 3, 4 OF REAL;
+    Open = POINTER TO ARRAY OF ARRAY OF CHAR;
+    Handler = PROCEDURE (VAR msg: Rec;
+                         n: INTEGER): BOOLEAN;
+    Proc = PROCEDURE;
+    Nested = RECORD
+      inner: RECORD
+        a, b: CHAR
+      END;
+      list: ARRAY 10 OF RECORD
+        k: INTEGER
+      END
+    END;
+  VAR c: CHAR;
+  VAR
+    i, j, k: INTEGER;
+    s: ARRAY 64 OF CHAR;
+    aVeryLongVariableName,
+    anotherVeryLongVariableName,
+    yetAnotherLongName,
+    andOneMore: LONGINT;
+BEGIN
+END Declarations.
