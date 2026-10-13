@@ -58,12 +58,15 @@ Before the command line, opp reads options from config files: the user's,
 `$XDG_CONFIG_HOME/opp/opp.conf` (or `~/.config/opp/opp.conf`), then the
 current directory's, `.opp.conf`. Each line is an option as the command
 line gives it, without its `--` if you like, its value after a space or
-`=`; `#` starts a comment:
+`=`. A flag, an option that takes no value, is its name alone, as `pack`
+or `no-module-indent`; the option that undoes it (`module-indent`) turns
+it off again. `#` starts a comment:
 
 ```
 # ~/.config/opp/opp.conf
 width = 100
 pack
+no-module-indent
 align all,nocomment
 ```
 

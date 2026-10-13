@@ -276,6 +276,15 @@ name, with or without its
 .BR \-\- ;
 an option's value follows after white space or
 .BR = .
+A flag, an option that takes no value, is its name alone, as
+.B pack
+or
+.BR no\-module\-indent ;
+giving one a value is a mistake.
+To turn a flag off, use the option that undoes it, as
+.B module\-indent
+undoes
+.BR no\-module\-indent .
 Blank lines are ignored, and
 .B #
 starts a comment.
@@ -294,6 +303,7 @@ For example:
 # \(ti/.config/opp/opp.conf
 width = 100
 pack
+no\-module\-indent
 align all,nocomment
 .fi
 .RE
