@@ -57,6 +57,7 @@ VAR
   noConfig: BOOLEAN; (* --no-config *)
   status: INTEGER; (* the exit status so far *)
   files, lastFile: FileName;
+  fileArgs: BOOLEAN; (* whether the command line names a file, or - *)
   input: OppText.Buffer;
   stdin: ARRAY 2 OF CHAR;
 
@@ -258,6 +259,7 @@ END Add;
    that names none is a failure, exit status 1. *)
 PROCEDURE AddFile(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
+  fileArgs := TRUE;
   IF arg = "-" THEN
     Add(OppText.New(arg))
   ELSIF ~OppHost.Expand(arg, Add) THEN
@@ -807,7 +809,7 @@ BEGIN
   inPlace := FALSE; check := FALSE; tokens := FALSE; outDir := NIL;
   damage := noDamage;
   status := 0;
-  files := NIL; lastFile := NIL;
+  files := NIL; lastFile := NIL; fileArgs := FALSE;
 
   parser := ArgParser.NewParser(
       "opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, or -, standard input",
@@ -887,7 +889,7 @@ BEGIN
   ReadConfigs;
   parser.ParseArguments(1);
 
-  IF files = NIL THEN
+  IF ~fileArgs THEN
     stdin := "-";
     IF AddFile(0, stdin) THEN END
   END;

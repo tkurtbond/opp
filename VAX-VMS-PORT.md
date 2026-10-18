@@ -242,6 +242,36 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    file and its layout document, and the heap is limited to three
    quarters of the paging-file quota (guide, chapter 6), so note the
    `PGFLQUOTA` it needs.
+
+   Done 2026-10-18, in one `tools/vax-do` run, with the runtime
+   compiled from `rtl/vax` (`-clear-library-path -import-path`) and
+   `PocRtl.mar` sent as `POCRTL.MAR`, as poc's `tools/vax-suite` does, so
+   that nothing had to be installed on the guest first:
+
+   - Assembling and linking `OPP.EXE` and `OPPDOCTEST.EXE` and the
+     runtime took 12.5 seconds (10.4 of CPU).
+   - `OppDocTest` passed all 96 checks, its output that of
+     `tests/opp-doc-selftest.test`.
+   - `OppFormat.Mod` (1401 lines) formatted in each of `-1`, `-p` and
+     `-k --no-module-indent`, and a fixture input at `-p -w 60
+     --align=all`, came out byte for byte as the host's, with options
+     given unquoted, so in capitals. A syntax error gave the host's
+     message and exit status 1, `%X1000000A`, the file named in capitals
+     as it was typed.
+   - `OppFormat.Mod` takes about 13.3 seconds of CPU in each mode, where
+     the host takes 0.04: about 330 times as long. `--check` over the 8
+     sources, `OPP*.MOD`, takes 38 seconds. The peak virtual size was
+     19,322 pages (about 10 MB), against a `PGFLQUOTA` of 300,000.
+   - `OPP*.MOD` expanded to the 8 sources, named by their whole
+     specifications (`DUA1:[USERS.POC]OPPDOC.MOD`). A pattern that
+     matched nothing showed a bug: opp then found no files and read
+     standard input instead. It now reads standard input only when the
+     command line names no file at all.
+   - Building on VMS itself was not tried: the guest's only poc,
+     `[.BIN]POC.EXE`, is 0.5.0, a stage of poc's bootstrap, which cannot
+     be expected to build 0.7.0's runtime. It needs the 0.7.0 kit
+     installed there, which step 7 will need too.
+
 5. **The fixtures on the VAX** (`tools/vax-tests`, below), then a VMS
    version of `tests/in-place.sh` for `--in-place` (versions) and
    `--output-dir` (VMS directories).
