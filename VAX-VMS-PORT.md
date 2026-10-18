@@ -217,8 +217,13 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    as `opp: no file matches NAME`, exit status 1. On Unix that never
    happens, since the Unix `Expand` passes every name on.
 2. **ArgParser's argument hook**, in its own repository, with its own
-   tests. Reinstall the voc module and the poc library. opp sets the hook
-   (on Unix, to a procedure that does nothing).
+   tests (done 2026-10-18). A parser's `filter`, an `ArgumentFilter`, is
+   given every argument the parser reads, options, their values and
+   ordinary arguments alike, before it parses it; a command's parser
+   without one uses the one above it. The example program `Folded.Mod`
+   and the fixtures `tests/filter-*.test` test it. Reinstall the voc
+   module and the poc library. opp sets the filter to
+   `OppHost.FoldOption`, which on Unix does nothing.
 3. **`vms/OppHost.Mod` and a VAX build on Unix.** A `vaxGNUmakefile` (on
    the model of `pocGNUmakefile`) builds `Opp` and `OppDocTest` in
    `vax-build/` with `poc -target vax-dec-vms`, ArgParser compiled from

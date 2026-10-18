@@ -812,6 +812,7 @@ BEGIN
   parser := ArgParser.NewParser(
       "opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, or -, standard input",
       AddFile);
+  parser.filter := OppHost.FoldOption;
   parser.AddOption(
       ArgParser.MakeIntOption("w", "width",
           "The maximum line length (20 to 1000; default 80).", SetWidth, 20,
