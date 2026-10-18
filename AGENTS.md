@@ -7,7 +7,9 @@ both compilers' syntax extensions, to a maximum line length, in one of
 three modes: one statement per line (`-1`, the default), short statements
 and declarations packed onto shared lines (`-p`), or the author's own
 grouping kept while it fits (`-k`).
-`PLAN.md` is the roadmap and the record of design decisions.
+`PLAN.md` is the roadmap and the record of design decisions;
+`RELEASE.md` is how a release is made, and `NEWS.md` what each one
+changed.
 
 ## Where the language comes from
 

@@ -1,47 +1,34 @@
 # Releasing opp
 
-A plan for making releases of opp, and, once it is carried out, the
-record of how one is made. Nothing here is done yet. The model is poc's
-own process (`~/Repos/Oberon/Peaseblossom-main/doc/developer/DEVELOPER.md`,
-section 7, "Making a release"), cut down to what opp needs: one program, a
-man page, and a kit for VAX/VMS, with no packages yet.
-
-## Where things stand
-
-opp has no version number, no tags, no changelog and no `make dist`. It
-is published only as its GitHub repository (`tkurtbond/opp`), which a
-user clones and builds. The one version-like thing is the VMS kit's
-`VERSION.TXT`, which `tools/make-vax-kit` writes from `git describe` and
-the date ("opp 5e34921 of 2026-10-18, compiled by poc 0.7.0 ...").
-
-Building opp needs ArgParser, from its own repository
-(`tkurtbond/oberon-argparser`, `~/Repos/Oberon/ArgParser`), and opp needs
-its argument filter (VAX-VMS-PORT.md step 2). **ArgParser 0.1.0**, the
-first release with the filter, was released on 2026-10-18 (tag `v0.1.0`,
-a GitHub release with its tarball, `.sha256` and `.asc`; its AGENTS.md,
-"Making a release", says how), so opp needs ArgParser 0.1.0 or later.
-Its release is the model for opp's, on a smaller scale: `VERSION` in its
-`GNUmakefile`, `NEWS.md`, and `make dist`, `distcheck` and `dist-sign`.
+How a release of opp is made. The model is poc's own process
+(`~/Repos/Oberon/Peaseblossom-main/doc/developer/DEVELOPER.md`, section
+7, "Making a release"), cut down to what opp needs: one program, a man
+page, and a kit for VAX/VMS, with no packages; ArgParser's release
+(its AGENTS.md, "Making a release") is the same process at a smaller
+scale. The last section, "How the process was built", records the steps
+that made it, in 2026-10.
 
 ## What a release is
 
 A release `x.y.z` is:
 
-- **The version in the program**: `opp --version` prints `opp x.y.z`,
-  and the manual's header, `README.md` and the VMS help name it.
-- **A signed tag** `vx.y.z` on the commit, pushed to GitHub.
-- **A tarball** `opp-x.y.z.tar.gz`, which unpacks into `opp-x.y.z/`: what
-  git tracks at the tag (the sources, `GNUmakefile`, `pocGNUmakefile`,
-  `vaxGNUmakefile`, `vms/`, `tools/`, `tests/`, the documents), with its
-  `.sha256` and, signed, its `.asc`. It does not hold ArgParser (below).
-- **The VMS kit** `OPP-x-y-z.COM`, the periods made hyphens, as poc names
-  its kits (`POC-0-7-0.COM`): a VMS name, which may have one period only.
-  Its `VERSION.TXT` gives the version as well as the commit.
-- **A GitHub release** `vx.y.z`, titled "opp x.y.z", with the tarball,
-  its `.sha256` and `.asc`, and the kit, and notes taken from `NEWS.md`.
-- **An entry in `NEWS.md`**, a new file: one section per release, newest
-  first, saying what changed for a user (new options, changed output,
-  fixes), not every commit.
+- **The version in the program**: `opp --version` prints `opp x.y.z`.
+  The manual's header and `--version` entry, and the `--version` entries
+  of `README.md` and `vms/OPP.HLP`, show it.
+- **A section in `NEWS.md`**, `## x.y.z (date)`: what changed for a user
+  (options, output, fixes), not every commit, newest first.
+- **A signed tag** `vx.y.z` on the release's commit, pushed to GitHub.
+- **A tarball** `opp-x.y.z.tar.gz`, which unpacks into `opp-x.y.z/`:
+  what git tracks at the tag, and nothing built. It does not hold
+  ArgParser, which has releases of its own; opp needs ArgParser 0.1.0 or
+  later.
+- **The VMS kit** `OPP-x-y-z.COM`, the periods made hyphens (a VMS name
+  has one period), as poc's kits are named. Its `VERSION.TXT` gives the
+  version and the commit, and it carries its own `ArgParser.Mod`.
+- **A `.sha256` and a signature, `.asc`,** for each of the tarball and
+  the kit.
+- **A GitHub release** `vx.y.z`, "opp x.y.z", with those six files, and
+  notes from `NEWS.md`.
 
 ## Version numbers
 
@@ -49,194 +36,154 @@ A release `x.y.z` is:
   release may change the default output; a patch release only fixes bugs,
   and changes output only where it was wrong (a lost comment, a crash, a
   line too long that could have been broken).
-- **A change of the default output is always in the notes**, since a user
-  who runs `opp --check` in a build sees every file fail after upgrading.
-  `--paren-space keep` is such a change: code written `P (x)` no longer
-  closes up.
-- The first release is **0.1.0**.
-- Between releases the version stays that of the last release. A build
-  from a commit after it is not a release; `VERSION.TXT` in a kit, and
-  `git describe`, say which commit it is.
+- **A change of the default output is always in the notes**, said
+  plainly: a user who runs `opp --check` in a build sees every such file
+  fail after upgrading. `--paren-space keep` is such a change: code
+  written `P (x)` no longer closes up.
+- Between releases the version stays that of the last release; `0.0.0`
+  is the version before the first. A build from a later commit is not a
+  release: `git describe`, and a kit's `VERSION.TXT`, say which commit it
+  is.
+- A patch release from an older minor is not planned for: while opp is
+  0.x, the next release comes from `main`.
 
-## Pieces to build
+## The tools
 
-1. **Push ArgParser** (`19ede65`), so that opp's `main` builds from
-   GitHub. Done 2026-10-18.
-2. **The version in opp.** A constant `version` in `Opp.Mod`, `--version`
-   printing `opp x.y.z` and exiting 0, like `--help` (ArgParser's
-   `MakeOption`, a handler that prints and exits). Its usage line, and an
-   entry in `opp.1`, `README.md` and `vms/OPP.HLP`, kept in step as
-   AGENTS.md says. The manual's `.TH` line takes the version as its
-   source field: `.TH OPP 1 <date> "opp x.y.z" "User Commands"`. A fixture
-   `opp-version` checks the output, regenerated from a real run each time
-   the version changes, never edited by hand. The help fixtures change
-   once, for the new line, as they did for `--paren-space`.
+- **`make set-version VERSION=x.y.z`** (`tools/set-version`) sets the
+  version everywhere it is written: `version` in `Opp.Mod`, the manual's
+  `.TH` line (with today's date) and `--version` entry, and the
+  `--version` entries of `README.md` and `vms/OPP.HLP`. It dates the
+  heading `## x.y.z (unreleased)` in `NEWS.md`, or adds `## x.y.z (date)`
+  if there is none; then builds `Opp` and regenerates
+  `tests/opp-version.test` from a real run. It refuses a version that is
+  not `x.y.z` or not greater than the current one, and changes nothing
+  unless each place holds the current version exactly once.
+- **`make dist`** writes, in `dist/`, `opp-x.y.z.tar.gz` (`git archive`
+  of `HEAD`) and `OPP-x-y-z.COM` (`make -f vaxGNUmakefile kit
+  KIT=dist/...`), each with its `.sha256`. It refuses the version 0.0.0,
+  a working tree that differs from `HEAD`, a `NEWS.md` without a dated
+  section for the version, and a tag `vx.y.z` on another commit.
+- **`make distcheck`** runs `make dist`, then unpacks the tarball in a new
+  temporary directory and runs `make test` and `make -f pocGNUmakefile
+  test-poc` there, so that a file git does not track, or a test that
+  needs this tree, fails it.
+- **`make dist-sign`** writes the `.asc` of the tarball and of the kit,
+  with gpg's default key (`GPG_KEY=` for another).
+- **`tools/check-vax-kit dist/OPP-x-y-z.COM`** unpacks, builds, sets up
+  and uses that kit on the VAX/VMS guest (`VAX_HOST`, `VAX_NETRC`;
+  `POC_SRC` is poc's source tree). It checks the very file that is
+  published; `make -f vaxGNUmakefile check-kit` makes a kit again first.
+- `make clean` removes `dist/`.
 
-   Done 2026-10-18. `version` is `0.0.0` until the first release, so that
-   `make set-version VERSION=0.1.0` raises it. `--version` cannot be in a
-   config file, like `--help` (fixture `opp-config-bad-version`). The
-   README's and `vms/OPP.HLP`'s entries for `--version` show the version
-   (`opp 0.0.0`), which is where `set-version` changes it there.
-3. **`make set-version VERSION=x.y.z`** (`tools/set-version`, Python):
-   sets `version` in `Opp.Mod`, the `.TH` line of `opp.1` (version and
-   today's date), and the version `README.md` and `vms/OPP.HLP` name; adds
-   a heading for `x.y.z` to the top of `NEWS.md` if it has none, for the
-   notes to be written under; then builds `Opp` and regenerates
-   `tests/opp-version.test` from a real run. It refuses a version that is
-   not `x.y.z`, or not greater than the current one.
-
-   Done 2026-10-18. Each place must hold the current version exactly
-   once, or nothing is changed. Tried in a fresh clone: 0.1.0 set in all
-   five places, the fixture regenerated and the fixtures passing; 0.1.0
-   again, 0.0.0, 0.1 and 01.0.0 refused; and 0.1.1 after it put its
-   `NEWS.md` heading above 0.1.0's. It showed that a `make` run under
-   another (`set-version`'s `make Opp`) linked `Heap_GC` twice, since the
-   `GNUmakefile` put its exported `LDFLAGS` before what it inherited, its
-   own included; it now takes them out first.
-4. **`NEWS.md`**, begun with 0.1.0: what opp does, as of its first
-   release (the three modes, the safety check, the style options, config
-   files, the VAX/VMS port).
-
-   Done 2026-10-18. Notes written ahead of a release go under
-   `## x.y.z (unreleased)`, which `set-version` dates (tried in a fresh
-   clone, as in piece 3). AGENTS.md asks for a line there with each
-   change a user would notice.
-5. **The kit's version.** `tools/make-vax-kit` reads `version` from
-   `Opp.Mod` and puts it in `VERSION.TXT` and the kit's first line with
-   the commit ("opp 0.1.0, 5e34921, of 2026-10-18, compiled by ..."). It
-   takes `-o NAME` for the kit's name, so that `make dist` can write
-   `OPP-x-y-z.COM`; without it the kit stays `vax-kit/OPP-KIT.COM`.
-
-   Done 2026-10-18. `make -f vaxGNUmakefile kit KIT=path` passes `-o`,
-   and `check-kit KIT=path` checks that kit: `tools/check-vax-kit` takes
-   its path. The kit's name, without `.COM`, is in its `README.TXT`
-   (`vms/README.TXT`'s `@KIT@`) and its first lines; `BUILD.COM` no longer
-   names it. `VERSION.TXT` reads "opp 0.0.0, 2342d1a-dirty, of
-   2026-10-18, compiled by poc 0.7.0 (fa7b7b2)". A kit `OPP-0-0-0.COM`
-   passed `check-kit` on the guest, 9 ok.
-6. **`make dist`, `make distcheck` and `make dist-sign`**, in
-   `GNUmakefile`, writing into `dist/` (ignored by git):
-   - `dist` refuses a working tree that differs from `HEAD`, and a `HEAD`
-     whose `version` already has a tag on another commit. It writes
-     `opp-x.y.z.tar.gz` with `git archive --prefix=opp-x.y.z/ HEAD` (so
-     only what git tracks, and nothing built), its `.sha256`, and the kit,
-     `OPP-x-y-z.COM`, through `make -f vaxGNUmakefile` and
-     `tools/make-vax-kit -o`.
-   - `distcheck` runs `dist`, then unpacks the tarball in a fresh
-     temporary directory and there runs `make test` and `make -f
-     pocGNUmakefile test-poc`, with `VOC_OBERON_MODULES` and the poc
-     library as installed, so that a tarball missing a file fails. `make
-     corpus` is not run there: it needs the other repositories.
-   - `dist-sign` writes `opp-x.y.z.tar.gz.asc` with gpg's default key
-     (`GPG_KEY=` for another).
-   - `make clean` removes `dist/`.
-
-   Done 2026-10-18. The version comes from `Opp.Mod`; `dist` also refuses
-   0.0.0 and a `NEWS.md` whose section for the version is not dated
-   (still `(unreleased)`), and gives the kit a `.sha256` too, and
-   `dist-sign` an `.asc`, as the tarball has. The make in the unpacked
-   tarball runs with `LDFLAGS` unset: this make exports them with its own
-   path to the spill object, which the other's filter would not take out.
-   Tried in a clone at 0.1.0, committed: each refusal; `distcheck` (124
-   ok and in-place 30 ok, with voc and with poc, in the unpacked
-   tarball), whose tarball held exactly what `git ls-files` lists; both
-   sums; the kit's first line "opp 0.1.0, e3faf50, ..."; and `dist-sign`
-   with a throwaway key, both signatures good.
-7. **The process written down**: a "Making a release" section in this
-   file, replacing the plan, and a line in AGENTS.md pointing to it.
-8. **Release 0.1.0**, by the steps below.
-
-Each piece ends as every change does: `make test`, `make -f
-pocGNUmakefile test-poc` and `make corpus` passing, and for 5 and 6
-`make -f vaxGNUmakefile check-kit` as well.
+`NEWS.md` is kept as changes are made (AGENTS.md): a change a user would
+notice adds a line under `## x.y.z (unreleased)`, so the notes are mostly
+written by release time.
 
 ## Making a release
 
-Once the pieces are built, a release `x.y.z` is made in these steps, on
-`main`:
+On `main`, with a clean working tree:
 
-1. **The version.** `make set-version VERSION=x.y.z`, then finish the
-   notes in `NEWS.md` under its heading: what changed since the last
-   release (`git log v<last>..`, against what the `(unreleased)` section
-   already says), for a user, with every change of the default output
-   said plainly.
+1. **The version.** `make set-version VERSION=x.y.z`. Then finish
+   `NEWS.md`'s section for it: read `git log v<last>..` against what the
+   section already says, add what it lacks, and say every change of the
+   default output plainly. `set-version` dates the section and the
+   manual today; if the release slips to another day, fix both dates by
+   hand before committing.
 2. **Check**, all of it:
 
        make test
        make -f pocGNUmakefile test-poc
        make corpus
        make -f vaxGNUmakefile test-vax
-       make -f vaxGNUmakefile check-kit
 
-   The last two need the VAX/VMS guest (`VAX_HOST`, `VAX_NETRC`) and
-   poc's source (`POC_SRC`). Compare the long-line counts `make corpus`
-   prints with the last release's: `corpus: ok` alone does not show a
-   line that has grown too long.
-3. **Commit** ("opp x.y.z"), and **push** `main`. If opp now needs
-   something of ArgParser's that is in no ArgParser release, release
-   ArgParser first (its AGENTS.md, "Making a release"), and say in
-   `NEWS.md` which version opp needs.
+   Compare the long-line counts `make corpus` prints with the last
+   release's: `corpus: ok` alone does not show a line that has grown too
+   long. `test-vax` needs the guest and takes a few minutes.
+3. **Commit**, "opp x.y.z", and do not push yet. If opp needs something
+   of ArgParser's that no ArgParser release has, release ArgParser first,
+   and say in `NEWS.md` which version opp needs.
 4. **The tarball and the kit**, from that commit:
 
        make distcheck
        tools/check-vax-kit dist/OPP-x-y-z.COM
        make dist-sign
 
-   `tools/check-vax-kit` checks on the guest the very kit that is
-   published, as `distcheck` does the tarball; `make -f vaxGNUmakefile
-   check-kit` would make the kit again over it, and its `.sha256` could
-   then be of another file.
+   Make them once and publish those: each `make dist` writes a new
+   tarball (tar and gzip record times), with another sum. If a check
+   fails, fix it in a new commit (or amend the unpushed one), and start
+   this step again.
+5. **Push and tag**: push `main`, then tag the commit, signed, and push
+   the tag:
 
-   Run `make dist` once, through `distcheck`, and sign and publish what it
-   wrote: each run writes a new tarball (tar and gzip record times), whose
-   sum differs.
-5. **Tag** the commit, signed, and push the tag:
-
+       git push origin main
        git tag -s vx.y.z -m "opp x.y.z"
        git tag -v vx.y.z
        git push origin vx.y.z
 
-   gpg asks for the key's passphrase for the tag and for `dist-sign`.
-   Over ssh its graphical pinentry appears on the machine's own screen;
-   in a terminal, set `GPG_TTY=$(tty)` and use `--pinentry-mode loopback`,
-   as poc's DEVELOPER.md says.
-6. **Publish**:
+   gpg asks for the key's passphrase, for the tag here and for
+   `dist-sign` above. Over ssh its graphical pinentry appears on the
+   machine's own screen; in a terminal, set `GPG_TTY=$(tty)` and use
+   `--pinentry-mode loopback`, as poc's DEVELOPER.md says.
+6. **Publish**, with the notes below in a file:
 
        gh release create vx.y.z dist/opp-x.y.z.tar.gz{,.sha256,.asc} \
          dist/OPP-x-y-z.COM{,.sha256,.asc} --title "opp x.y.z" --notes-file <notes>
 
-   The notes are `NEWS.md`'s section for `x.y.z`, then how to install:
-   from the tarball, ArgParser first (the ArgParser release it needs,
-   0.1.0 or later, linked; `make install` there for voc, `make -f
-   pocGNUmakefile install` for poc), then `make`
-   and `make install`, or the poc build; on VAX/VMS, the kit copied in
-   ASCII mode, `@OPP-x-y-z` in an empty directory, `@BUILD`, `@SETUP`.
-7. **Record** the release: its date and what it held, in `PLAN.md` (as
-   poc's AGENTS.md records each of its releases), and check the release
-   page's files download and the tarball's sum matches.
+7. **Check the release**: download its files into an empty directory
+   (`gh release download vx.y.z -R tkurtbond/opp`), check both sums
+   (`sha256sum -c *.sha256`) and both signatures (`gpg --verify`), and
+   compare the unpacked tarball with `git archive` of the tag.
 
-A patch release from an older minor is not planned for: while opp is
-0.x, the next release comes from `main`.
+### The notes
 
-## Decisions to make
+The release's notes are `NEWS.md`'s section for `x.y.z`, without its
+heading:
 
-The plan assumes these; each is the user's to change.
+    awk '/^## /{p = ($2 == "x.y.z")} p' NEWS.md | sed 1d
+
+then how to install it, with this release's names:
+
+    ## Installing
+
+    opp needs ArgParser 0.1.0 or later
+    (https://github.com/tkurtbond/oberon-argparser/releases): install it
+    first, with `make install` for voc, or `make -f pocGNUmakefile
+    install` for poc.
+
+    Check the tarball (`sha256sum -c opp-x.y.z.tar.gz.sha256`, `gpg
+    --verify opp-x.y.z.tar.gz.asc`), unpack it, and in `opp-x.y.z/`:
+
+        make && make test && make install                  # with voc
+        make -f pocGNUmakefile test-poc && make -f pocGNUmakefile install   # with poc
+
+    `make install` copies `opp` to `~/local/bin` and `opp.1` to
+    `~/local/share/man/man1` (`BINDIR`, `MANDIR` for others).
+
+    On VAX/VMS 5.5-2: copy `OPP-x-y-z.COM` to VMS in ASCII mode, and in
+    an empty directory run `@[-]OPP-x-y-z`, then `@BUILD`, which needs
+    MACRO, LINK and LIBRARY but not poc, and `@SETUP`, in each process
+    that uses opp. The kit's `README.TXT` says more.
+
+## Decisions
+
+Settled 2026-10-18, with the user:
 
 - **The first version is 0.1.0**: opp is young, and 0.x leaves room to
   change its default output in a minor release.
 - **ArgParser is not bundled** in the tarball: it is a shared module, kept
-  in its own repository (AGENTS.md), with releases of its own (settled
-  2026-10-18, with ArgParser 0.1.0). opp's release notes name the
-  oldest ArgParser release opp builds with, now 0.1.0. The VMS kit
-  carries its own copy of `ArgParser.Mod`, compiled in, as before.
-- **Releases are signed**: the tag and the tarball, with the user's gpg
+  in its own repository (AGENTS.md), with releases of its own, beginning
+  with 0.1.0. opp's notes name the oldest ArgParser release opp builds
+  with. The VMS kit carries its own `ArgParser.Mod`, compiled in.
+- **Releases are signed**, the tag and both files, with the user's gpg
   key, as poc's are.
 - **`--version`, not `-V`**: opp's short options are few, and `-V` is
   taken to mean verbose by some tools.
 - **No packages yet** (RPM, FreeBSD and OpenBSD ports, pkgsrc): poc has
-  them because it is installed system-wide by others; opp can follow when
+  them because others install it system-wide; opp can follow when
   someone needs it. `make install`'s `BINDIR` and `MANDIR` are enough for
   a package to use later.
+- **`NEWS.md` and the GitHub release are the record** of each release;
+  `PLAN.md` does not repeat it.
 
 ## Left out
 
@@ -245,3 +192,43 @@ The plan assumes these; each is the user's to change.
 - Release automation in CI: the checks need the VAX guest and the
   corpus's repositories, which only the user's machines have.
 - A DCL verb for VMS (VAX-VMS-PORT.md, "Decisions").
+
+## How the process was built
+
+Planned on 2026-10-18, when opp had no version, no tags, no changelog and
+no `make dist`, and was published only as its repository, then built in
+these pieces, each checked as every change is (`make test`, `make -f
+pocGNUmakefile test-poc`, `make corpus`):
+
+1. **ArgParser's filter pushed** (`19ede65`), which opp needs: until then
+   a clone of both repositories from GitHub did not build. ArgParser 0.1.0
+   followed, its first release, made by its own `make dist`, `distcheck`
+   and `dist-sign`.
+2. **`--version`** and the constant `version`, `0.0.0` before the first
+   release. Like `--help`, it cannot be in a config file (fixture
+   `opp-config-bad-version`).
+3. **`make set-version`**, tried in a fresh clone: 0.1.0 set in all five
+   places, the fixtures passing; 0.1.0 again, 0.0.0, 0.1 and 01.0.0
+   refused; 0.1.1 after it put its heading above 0.1.0's. It showed that a
+   `make` run under another (`set-version`'s `make Opp`) linked `Heap_GC`
+   twice, since the `GNUmakefile` put its exported `LDFLAGS` before what
+   it inherited, its own included; it now takes them out first.
+4. **`NEWS.md`**, begun with the section for 0.1.0, `(unreleased)`, which
+   `set-version` dates.
+5. **The kit's version and name**: `tools/make-vax-kit` puts `Opp.Mod`'s
+   version in `VERSION.TXT` with the commit, and takes `-o` for its path;
+   the kit's `README.TXT` and header name it (`vms/README.TXT`'s `@KIT@`);
+   `tools/check-vax-kit` takes the kit's path, and `vaxGNUmakefile` gives
+   both `KIT=`. A kit `OPP-0-0-0.COM` passed `check-kit` on the guest.
+6. **`make dist`, `distcheck` and `dist-sign`**, tried in a clone at 0.1.0:
+   each refusal; `distcheck`, 124 ok and 30 in-place ok with voc and with
+   poc in the unpacked tarball, which held exactly what `git ls-files`
+   lists; both sums; and `dist-sign` with a throwaway key. The make in the
+   unpacked tarball runs with `LDFLAGS` unset: this make exports them with
+   its own path to the spill object, which the other's filter would not
+   take out. The kit has a `.sha256` and an `.asc` as the tarball does.
+7. **This file**, the plan made the process. Writing the steps down
+   changed three things: `main` is pushed after `distcheck` and the kit's
+   check pass, not before, so a failure is fixed before anything is
+   published; step 7 checks what GitHub serves; and the release is
+   recorded in `NEWS.md` and on GitHub, not in `PLAN.md` too.
