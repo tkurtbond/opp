@@ -143,6 +143,7 @@ poc accept:
 | `OppDoc.Mod`     | Layout documents and the renderer that fits them to a width |
 | `OppFormat.Mod`  | Recursive-descent parser for poc + voc that builds a document |
 | `OppCheck.Mod`   | The safety check: the output has the input's tokens and comments |
+| `OppHost.Mod`    | What the host decides: file names, wildcards, option case, config file names, how `--in-place` replaces a file (Unix; VMS in `VAX-VMS-PORT.md`) |
 | `Opp.Mod`        | Command line, config files, file handling, `--in-place`, `--output-dir` and `--check` |
 
 Each module's header comment says what it does; keep them current.

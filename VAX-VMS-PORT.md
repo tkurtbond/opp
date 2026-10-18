@@ -116,14 +116,19 @@ A first cut of `OppHost`'s interface:
 | --- | --- | --- |
 | `FoldOption(VAR arg)` | nothing | lowercase an argument that starts with `-` |
 | `Expand(name, add)` | `add(name)` | each file `Directories.NextFile` finds, or an error if none |
-| `NameStart(name)` | after the last `/` | after the last `:`, `]` or `>` (`Directories.NameStart`) |
+| `BaseName(name)` | after the last `/` | after the last `:`, `]` or `>` (`Directories.NameStart`), without `;n` |
 | `WithoutVersion(name)` | `name` | `name` without `;n` |
 | `InDirectory(dir, name)` | `dir/name` | `Directories.MakePath` |
-| `IsDirectory(dir)` | `Platform.IdentifyByName` (as now) | `Directories.IsDirectory` |
+| `IsDirectory(dir)` | `Platform.IdentifyByName` (as before) | `Directories.IsDirectory` |
 | `UserConfig()` | `$XDG_CONFIG_HOME/opp/opp.conf`, `~/.config/opp/opp.conf` | `OPP$CONFIG`, else `SYS$LOGIN:OPP.CONF` |
-| `DirectoryConfig` | `.opp.conf` | `OPP.CONF` |
-| `Replace(name, old, new)` | the backup scheme `WriteFile` has now | a new version (below) |
+| `directoryConfig` | `.opp.conf` | `OPP.CONF` |
+| `newVersions` | `FALSE`: `--in-place` writes over the file | `TRUE`: a new version (below) |
 | `configHelp` | the `--config` help text | the same, with VMS names |
+
+The writing of files stays in `Opp.Mod`, which uses only `Platform`, the
+same on both hosts. `newVersions`, a constant, picks between writing over
+the file and writing a new one, so the VMS module needs no code of its
+own for it. The Unix build never takes the new-version branch.
 
 ### `--in-place` on VMS: a new version
 
@@ -203,11 +208,14 @@ foreign commands with folded options are enough to make opp useful.
 Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
 `make corpus` passing on Unix, and from step 3 on, the VAX tests too.
 
-1. **Portable changes, on Unix alone.** Write the formatted text a line
-   at a time (`Out.Ln`). Move the host code into `OppHost.Mod` with the
-   interface above, Unix implementations only, and route `Opp.Mod`
-   through it. No output changes. `make format` and the `opp-own-source`
-   fixture now cover `OppHost.Mod`.
+1. **Portable changes, on Unix alone** (done 2026-10-18). Write the
+   formatted text a line at a time (`Out.Ln`). Move the host code into
+   `OppHost.Mod` with the interface above, Unix implementations only, and
+   route `Opp.Mod` through it. No output changes. `make format` and the
+   `opp-own-source` fixture now cover `OppHost.Mod`. A file argument now
+   goes through `OppHost.Expand`, and one that names no file is reported
+   as `opp: no file matches NAME`, exit status 1. On Unix that never
+   happens, since the Unix `Expand` passes every name on.
 2. **ArgParser's argument hook**, in its own repository, with its own
    tests. Reinstall the voc module and the poc library. opp sets the hook
    (on Unix, to a procedure that does nothing).

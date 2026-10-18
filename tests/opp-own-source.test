@@ -10,6 +10,7 @@ arg OppCheck.Mod
 arg OppDoc.Mod
 arg OppDocTest.Mod
 arg OppFormat.Mod
+arg OppHost.Mod
 arg OppScanner.Mod
 arg OppText.Mod
 status 0

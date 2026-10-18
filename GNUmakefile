@@ -49,13 +49,15 @@ Opp: ArgParser.o
 ArgParser.o: Err.o
 
 # opp's own modules, each built before the modules that import it.
-Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o OppCheck.o
+Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o OppCheck.o OppHost.o
 
 OppFormat.o: OppText.o OppScanner.o OppDoc.o
 
 OppCheck.o: OppText.o OppScanner.o
 
 OppScanner.o: OppText.o
+
+OppHost.o: OppText.o
 
 # OppDocTest checks the layout engine, OppDoc.
 OppDocTest: OppText.o OppDoc.o
@@ -104,7 +106,7 @@ corpus: Opp
 # Format opp's own source with opp, in the style tests/opp-own-source.test
 # checks.
 OPP_SOURCES = Opp.Mod OppCheck.Mod OppDoc.Mod OppDocTest.Mod OppFormat.Mod \
-  OppScanner.Mod OppText.Mod
+  OppHost.Mod OppScanner.Mod OppText.Mod
 format: Opp
 	./Opp --no-config --in-place -k --no-module-indent $(OPP_SOURCES)
 

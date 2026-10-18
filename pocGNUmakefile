@@ -43,7 +43,7 @@ BUILDDIR = poc-build
 PROGRAMS = Opp OppDocTest
 # opp's own modules, which poc compiles from source with the programs
 # that import them.
-MODULES = OppText OppScanner OppDoc OppFormat OppCheck
+MODULES = OppText OppScanner OppDoc OppFormat OppCheck OppHost
 BINDIR ?= $(HOME)/local/bin
 # and its man page, opp.1, to MANDIR.
 MANDIR ?= $(HOME)/local/share/man/man1

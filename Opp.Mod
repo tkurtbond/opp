@@ -17,13 +17,19 @@ MODULE Opp;
 
    Before the command line, opp reads its options from the config files,
    each line an option as the command line gives it: the user's
-   ($XDG_CONFIG_HOME/opp/opp.conf, or ~/.config/opp/opp.conf), then the
-   current directory's (.opp.conf), so the command line overrides both and
-   the directory's overrides the user's. --config names the one file to
-   read instead, and --no-config reads none. *)
+   (OppHost.UserConfig: on Unix $XDG_CONFIG_HOME/opp/opp.conf, or
+   ~/.config/opp/opp.conf), then the current directory's
+   (OppHost.directoryConfig: on Unix .opp.conf), so the command line
+   overrides both and the directory's overrides the user's. --config names
+   the one file to read instead, and --no-config reads none.
+
+   What depends on the host system - file names, wildcards, the case of
+   options, config files, and how --in-place replaces a file - is
+   OppHost's, which has one implementation for Unix and one for VAX/VMS
+   (VAX-VMS-PORT.md). *)
 
 IMPORT SYSTEM, ArgParser, Args, Err, In, Out, Platform, OppText, OppScanner,
-    OppFormat, OppCheck;
+    OppFormat, OppCheck, OppHost;
 
 CONST
   (* exit statuses (AGENTS.md, "Exit statuses") *)
@@ -225,16 +231,6 @@ BEGIN
   RETURN FALSE
 END Help;
 
-(* A file name, or "-" for standard input, kept in order. *)
-PROCEDURE AddFile(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR f: FileName;
-BEGIN
-  NEW(f); f.name := OppText.New(arg); f.next := NIL;
-  IF lastFile = NIL THEN files := f ELSE lastFile.next := f END;
-  lastFile := f;
-  RETURN TRUE
-END AddFile;
-
 (* A command line mistake: msg, and exit status 2. *)
 PROCEDURE UsageError(msg: ARRAY OF CHAR);
 BEGIN
@@ -248,6 +244,29 @@ PROCEDURE SetStatus(s: INTEGER);
 BEGIN
   IF s > status THEN status := s END
 END SetStatus;
+
+(* A file to format, or "-" for standard input, kept in order. *)
+PROCEDURE Add(name: OppText.Text);
+  VAR f: FileName;
+BEGIN
+  NEW(f); f.name := name; f.next := NIL;
+  IF lastFile = NIL THEN files := f ELSE lastFile.next := f END;
+  lastFile := f
+END Add;
+
+(* A file argument: "-" for standard input, or the files it names; one
+   that names none is a failure, exit status 1. *)
+PROCEDURE AddFile(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF arg = "-" THEN
+    Add(OppText.New(arg))
+  ELSIF ~OppHost.Expand(arg, Add) THEN
+    Out.Flush;
+    Err.String("opp: no file matches "); Err.String(arg); Err.Ln;
+    SetStatus(failureStatus)
+  END;
+  RETURN TRUE
+END AddFile;
 
 (* The name of a file in messages: "(stdin)" for standard input. *)
 PROCEDURE DisplayName(name: OppText.Text): OppText.Text;
@@ -462,11 +481,27 @@ BEGIN
   RETURN (Platform.Close(h) = 0) & ok
 END WriteAll;
 
+(* out written to a new file target, or on VMS a new version of it, which
+   is removed if it cannot be written whole. *)
+PROCEDURE WriteNew(target: OppText.Text; out: OppText.Buffer);
+  VAR h: Platform.FileHandle;
+BEGIN
+  Out.Flush;
+  IF Platform.New(target^, h) # 0 THEN
+    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
+    SetStatus(failureStatus)
+  ELSIF ~WriteAll(target^, h, out) THEN
+    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
+    IF Platform.Unlink(target^) # 0 THEN END;
+    SetStatus(failureStatus)
+  END
+END WriteNew;
+
 (* out as the new content of the file name, written over it so that it
    keeps its permissions, owner and links. Once the file is open, its old
    content is copied to name.opp-backup, which is deleted when the file is
    written, and which a failure leaves for the user to restore. *)
-PROCEDURE WriteFile(name: OppText.Text; old, out: OppText.Buffer);
+PROCEDURE WriteOver(name: OppText.Text; old, out: OppText.Buffer);
   VAR backup: OppText.Buffer; h, hb: Platform.FileHandle;
 BEGIN
   backup := OppText.NewBuffer();
@@ -490,63 +525,52 @@ BEGIN
     Err.String("opp: cannot remove "); Err.String(backup.chars^); Err.Ln;
     SetStatus(failureStatus)
   END
-END WriteFile;
+END WriteOver;
 
-(* The last part of the file name name: what follows its last slash. *)
-PROCEDURE BaseName(name: OppText.Text): OppText.Text;
-  VAR i, start: LONGINT;
+(* out as the new content of the file name: with OppHost.newVersions, as
+   VMS does, a new version of it, the old one left as it was; otherwise
+   written over it. *)
+PROCEDURE WriteFile(name: OppText.Text; old, out: OppText.Buffer);
 BEGIN
-  i := 0; start := 0;
-  WHILE name[i] # 0X DO
-    IF name[i] = "/" THEN start := i + 1 END;
-    INC(i)
-  END;
-  RETURN OppText.Slice(name^, start, i - start)
-END BaseName;
+  IF OppHost.newVersions THEN
+    WriteNew(OppHost.WithoutVersion(name), out)
+  ELSE
+    WriteOver(name, old, out)
+  END
+END WriteFile;
 
 (* The file --output-dir writes name's formatted text to: the file of the
    same base name in the directory. *)
 PROCEDURE OutputName(name: OppText.Text): OppText.Text;
-  VAR b: OppText.Buffer;
 BEGIN
-  b := OppText.NewBuffer(); OppText.AppendText(b, outDir);
-  IF (b.len > 0) & (b.chars[b.len - 1] # "/") THEN
-    OppText.AppendChar(b, "/")
-  END;
-  OppText.AppendText(b, BaseName(name));
-  RETURN OppText.Slice(b.chars^, 0, b.len)
+  RETURN OppHost.InDirectory(outDir, OppHost.BaseName(name))
 END OutputName;
 
 (* out written to the file of name's base name in --output-dir's directory,
    created or replaced, unless that is the file name itself. *)
 PROCEDURE WriteOutput(name: OppText.Text; out: OppText.Buffer);
-  VAR target: OppText.Text; h: Platform.FileHandle; a, b: Platform.FileIdentity;
+  VAR target: OppText.Text; a, b: Platform.FileIdentity;
 BEGIN
   target := OutputName(name);
-  Out.Flush;
   IF (Platform.IdentifyByName(target^, a) = 0)
       & (Platform.IdentifyByName(name^, b) = 0) & Platform.SameFile(a, b) THEN
+    Out.Flush;
     Err.String("opp: --output-dir would write over "); Err.String(name^);
     Err.String(
         " itself, so nothing is written for it (--in-place formats a file in place)");
     Err.Ln;
     SetStatus(failureStatus)
-  ELSIF Platform.New(target^, h) # 0 THEN
-    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
-    SetStatus(failureStatus)
-  ELSIF ~WriteAll(target^, h, out) THEN
-    Err.String("opp: cannot write "); Err.String(target^); Err.Ln;
-    IF Platform.Unlink(target^) # 0 THEN END;
-    SetStatus(failureStatus)
+  ELSE
+    WriteNew(target, out)
   END
 END WriteOutput;
 
 (* --output-dir's checks, before any file is formatted: the directory
    exists, and no two files would be written to the same name in it. *)
 PROCEDURE CheckOutputDir;
-  VAR f, g: FileName; id: Platform.FileIdentity; t: OppText.Text;
+  VAR f, g: FileName; t: OppText.Text;
 BEGIN
-  IF Platform.IdentifyByName(outDir^, id) # 0 THEN
+  IF ~OppHost.IsDirectory(outDir) THEN
     Out.Flush;
     Err.String("opp: --output-dir: there is no directory ");
     Err.String(outDir^); Err.Ln;
@@ -556,7 +580,7 @@ BEGIN
   WHILE f # NIL DO
     g := f.next;
     WHILE g # NIL DO
-      IF OppText.Equal(BaseName(f.name), BaseName(g.name)) THEN
+      IF OppText.Equal(OppHost.BaseName(f.name), OppHost.BaseName(g.name)) THEN
         Out.Flush;
         Err.String("opp: --output-dir: "); Err.String(f.name^);
         Err.String(" and "); Err.String(g.name^);
@@ -580,14 +604,15 @@ PROCEDURE FindConfigOptions;
 BEGIN
   configFile := NIL; noConfig := FALSE; i := 1;
   WHILE i < Args.argc DO
-    Args.Get(i, arg);
+    Args.Get(i, arg); OppHost.FoldOption(arg);
     IF arg = "--" THEN
       i := Args.argc
     ELSIF arg = "--no-config" THEN
       noConfig := TRUE; configFile := NIL
     ELSIF arg = "--config" THEN
       IF i + 1 < Args.argc THEN
-        INC(i); Args.Get(i, arg); configFile := OppText.New(arg);
+        INC(i); Args.Get(i, arg); OppHost.FoldOption(arg);
+        configFile := OppText.New(arg);
         noConfig := FALSE
       END
     ELSIF (arg[0] = "-") & (arg[1] = "-") & (arg[2] = "c") & (arg[3] = "o")
@@ -722,28 +747,6 @@ BEGIN
   END
 END ReadConfig;
 
-(* The user's config file: opp/opp.conf in $XDG_CONFIG_HOME, or else in
-   ~/.config; NIL if neither variable is set. *)
-PROCEDURE UserConfig(): OppText.Text;
-  VAR dir: ArgParser.String; b: OppText.Buffer; i: LONGINT;
-BEGIN
-  b := OppText.NewBuffer();
-  IF Platform.getEnv("XDG_CONFIG_HOME", dir) & (dir # "") THEN
-    i := 0;
-    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
-  ELSIF Platform.getEnv("HOME", dir) & (dir # "") THEN
-    i := 0;
-    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
-    dir := "/.config"; i := 0;
-    WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END
-  ELSE
-    RETURN NIL
-  END;
-  dir := "/opp/opp.conf"; i := 0;
-  WHILE dir[i] # 0X DO OppText.AppendChar(b, dir[i]); INC(i) END;
-  RETURN OppText.Slice(b.chars^, 0, b.len)
-END UserConfig;
-
 (* Reads the config files the command line asks for. *)
 PROCEDURE ReadConfigs;
   VAR user: OppText.Text;
@@ -753,9 +756,9 @@ BEGIN
   ELSIF configFile # NIL THEN
     ReadConfig(configFile, TRUE)
   ELSE
-    user := UserConfig();
+    user := OppHost.UserConfig();
     IF user # NIL THEN ReadConfig(user, FALSE) END;
-    ReadConfig(OppText.New(".opp.conf"), FALSE)
+    ReadConfig(OppText.New(OppHost.directoryConfig), FALSE)
   END
 END ReadConfigs;
 
@@ -787,7 +790,9 @@ BEGIN
     ELSIF outDir # NIL THEN
       WriteOutput(name, out)
     ELSE
-      FOR i := 0 TO out.len - 1 DO Out.Char(out.chars[i]) END
+      FOR i := 0 TO out.len - 1 DO
+        IF out.chars[i] = 0AX THEN Out.Ln ELSE Out.Char(out.chars[i]) END
+      END
     END
   END
 END FormatFile;
@@ -872,9 +877,7 @@ BEGIN
                               "For opp's tests: spoil the formatted text (1 a token, 2 a comment, 3 the text after the module) to show that the safety check catches it.",
                               SetDamage, 1, 3));
   parser.AddOption(
-      ArgParser.MakeStringOption(0X, "config",
-                                 "Read options from this file, instead of from ~/.config/opp/opp.conf and ./.opp.conf.",
-                                 SetConfig));
+      ArgParser.MakeStringOption(0X, "config", OppHost.configHelp, SetConfig));
   parser.AddOption(
       ArgParser.MakeOption(0X, "no-config", "Read no config file.",
                            SetNoConfig));
