@@ -1,5 +1,5 @@
 $ ! BUILD.COM - builds opp, the Oberon pretty printer, in the directory
-$ ! OPP-KIT.COM was unpacked in: assembles the MACRO-32 in [.KIT], opp's
+$ ! opp's kit was unpacked in: assembles the MACRO-32 in [.KIT], opp's
 $ ! and poc's runtime's, links [.BIN]OPP.EXE, and makes the help library
 $ ! OPP.HLB from OPP.HLP. It needs MACRO, LINK and LIBRARY alone, not poc.
 $ ! Then @SETUP defines the command OPP (README.TXT). Written for opp's kit
@@ -22,7 +22,7 @@ $ ! put back after
 $ SAVED_RTL = F$TRNLNM("POC$RTL", "LNM$PROCESS")
 $ IF F$SEARCH(BIN_DIR + "OPP.EXE") .NES. "" THEN GOTO HELP_LIBRARY
 $ IF F$SEARCH(KIT_DIR + "OPP.COM") .NES. "" THEN GOTO KIT_THERE
-$ WRITE SYS$ERROR "BUILD: there is no ", KIT_DIR, "OPP.COM; unpack OPP-KIT.COM here first"
+$ WRITE SYS$ERROR "BUILD: there is no ", KIT_DIR, "OPP.COM; unpack the kit here first"
 $ EXIT %X10000014
 $KIT_THERE:
 $ ON WARNING THEN GOTO FAILED

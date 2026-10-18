@@ -2,20 +2,23 @@
 """Make opp's kit for VAX/VMS: one text file, a DCL procedure that unpacks
 itself on VMS into the directory it is run in.
 
-  tools/make-vax-kit
+  tools/make-vax-kit [-o KIT]
 
-VAX-VMS-PORT.md, step 7; make -f vaxGNUmakefile kit runs it. Writes
-vax-kit/OPP-KIT.COM, after poc's tools/bootstrap/make-vax-kit: for each
+VAX-VMS-PORT.md, step 7; make -f vaxGNUmakefile kit runs it. Writes KIT,
+by default vax-kit/OPP-KIT.COM, and for a release OPP-x-y-z.COM
+(RELEASE.md), whose name must be a VMS name ending in .COM, after poc's
+tools/bootstrap/make-vax-kit: for each
 file, "$ CREATE <file>", "$ DECK/DOLLARS=<marker>", the file's lines and the
 marker, so that a line may begin with "$". Everything is text, since a file
 copied to VMS by FTP in binary mode lands as fixed 512-byte records. The
 kit holds:
 
   README.TXT, BUILD.COM,   from vms/; README.TXT with VERSION.TXT's line
-  SETUP.COM                in it
+  SETUP.COM                and the kit's name in it
   OPP.HLP                  vms/OPP.HLP, the help library's text
   OPP.TXT                  the manual, opp.1, as text
-  LICENSE.TXT, VERSION.TXT LICENSE; which opp, and the poc that compiled it
+  LICENSE.TXT, VERSION.TXT LICENSE; opp's version (Opp.Mod's version) and
+                           commit, and the poc that compiled it
   [.KIT]                   opp's MACRO-32, compiled for vax-dec-vms with
                            poc's runtime from its source, so that building
                            it needs no poc; that runtime's PocRtl.mar, as
@@ -33,6 +36,7 @@ source tree (default ~/Repos/Oberon/Peaseblossom-main), for rtl/vax;
 ARGPARSER_SRC is ArgParser's (default ~/Repos/Oberon/ArgParser).
 """
 
+import argparse
 import datetime
 import os
 import re
@@ -45,8 +49,14 @@ home = os.path.expanduser("~")
 poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
 argparser_src = os.environ.get("ARGPARSER_SRC", os.path.join(home, "Repos/Oberon/ArgParser"))
 out = os.path.join(root, "vax-kit")
-kit_name = "OPP-KIT.COM"
 marker = "$_OPP_KIT_EOF"
+ap = argparse.ArgumentParser(description="Make opp's kit for VAX/VMS.")
+ap.add_argument("-o", dest="kit", default=os.path.join(out, "OPP-KIT.COM"),
+                help="the kit to write (default vax-kit/OPP-KIT.COM)")
+kit_path = os.path.abspath(ap.parse_args().kit)
+kit_name = os.path.basename(kit_path).upper()
+if not re.fullmatch(r"[A-Z0-9$_-]{1,39}\.COM", kit_name):
+    sys.exit("make-vax-kit: %s is not a VMS name NAME.COM" % os.path.basename(kit_path))
 
 
 def die(msg):
@@ -62,9 +72,9 @@ def run(args, **kw):
     return r.stdout.decode("latin-1")
 
 
-if os.path.isdir(out):
-    shutil.rmtree(out)
 build = os.path.join(out, "build")
+if os.path.isdir(build):
+    shutil.rmtree(build)
 os.makedirs(build)
 
 # the sources, as the kit's [.SRC] has them, and the build from them
@@ -77,9 +87,13 @@ for name, path in sources.items():
 run(["poc", "-target", "vax-dec-vms", "-clear-library-path", "-import-path",
      os.path.join(poc_src, "rtl", "vax"), "-build", "Opp.Mod"], cwd=build)
 
+found = re.findall(r'^  version = "([0-9.]+)";$', open(os.path.join(root, "Opp.Mod")).read(), re.M)
+if len(found) != 1:
+    die("Opp.Mod does not hold the constant version once")
 commit = run(["git", "describe", "--always", "--dirty"], cwd=root).strip()
 poc_version = run(["poc", "-version"]).splitlines()[0]
-version_line = "opp %s of %s, compiled by %s" % (commit, datetime.date.today().isoformat(), poc_version)
+version_line = "opp %s, %s, of %s, compiled by %s" % (found[0], commit, datetime.date.today().isoformat(),
+                                                    poc_version)
 
 files = []     # (VMS directory, VMS name, text)
 
@@ -98,6 +112,7 @@ def read(path):
 
 
 readme = read(os.path.join(root, "vms", "README.TXT")).replace("@VERSION@", version_line)
+readme = readme.replace("@KIT@", kit_name[:-len(".COM")])
 add("", "README.TXT", readme)
 add("", "BUILD.COM", read(os.path.join(root, "vms", "BUILD.COM")))
 add("", "SETUP.COM", read(os.path.join(root, "vms", "SETUP.COM")))
@@ -129,7 +144,7 @@ lines = [
     "$ ! %s: %s," % (kit_name, version_line),
     "$ ! opp, the Oberon pretty printer, for VAX/VMS 5.5-2, as a kit that unpacks",
     "$ ! itself. Copied to VMS in ASCII mode, it is run in an empty directory,",
-    "$ ! which becomes opp's: @OPP-KIT, then @BUILD and @SETUP. README.TXT, the",
+    "$ ! which becomes opp's: @%s, then @BUILD and @SETUP. README.TXT, the" % kit_name[:-len(".COM")],
     "$ ! first file it writes, says more. Written by opp's tools/make-vax-kit.",
     "$ ON WARNING THEN EXIT $STATUS",
     "$ IF F$SEARCH(\"BUILD.COM\") .EQS. \"\" THEN GOTO EMPTY",
@@ -146,10 +161,11 @@ for d, n, text in files:
     lines += text.split("\n")[:-1] if text.endswith("\n") else text.split("\n")
     lines.append(marker)
 lines += ["$ WRITE SYS$OUTPUT \"unpacked %s; now @BUILD (README.TXT)\"" % version_line, "$ EXIT 1"]
-with open(os.path.join(out, kit_name), "w", encoding="latin-1") as f:
+os.makedirs(os.path.dirname(kit_path), exist_ok=True)
+with open(kit_path, "w", encoding="latin-1") as f:
     f.write("\n".join(lines) + "\n")
 shutil.rmtree(build)
 longest = max(len(l) for l in lines)
 print("make-vax-kit: %s: %d files, %d bytes, longest line %d"
-      % (kit_name, len(files), os.path.getsize(os.path.join(out, kit_name)), longest))
-print(os.path.join(out, kit_name))
+      % (kit_name, len(files), os.path.getsize(kit_path), longest))
+print(kit_path)

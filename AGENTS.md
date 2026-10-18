@@ -93,7 +93,9 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   source in `[.SRC]`. It needs only MACRO, LINK and LIBRARY on VMS, not
   poc. `tools/check-vax-kit` (`check-kit`) unpacks, builds, sets up and
   uses it in `[.OPPT_KIT]` on the guest, and deletes it after. Check a
-  change to anything in `vms/` with it.
+  change to anything in `vms/` with it. `KIT=path` makes and checks
+  another kit, as a release's `OPP-x-y-z.COM`; `VERSION.TXT` in it gives
+  `Opp.Mod`'s version and the commit.
 - **`OppDocTest` is the in-process check battery** of the layout engine,
   run by `tests/opp-doc-selftest.test`, which embeds its output: after
   adding a check, regenerate that fixture from a real run. Prove a new

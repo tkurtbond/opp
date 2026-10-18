@@ -6,7 +6,7 @@ Compiler) or voc (Vishap Oberon), to a maximum line length. Before it
 writes anything for a file, it checks that the formatted text has
 exactly the file's tokens and comments.
 
-This directory is the kit OPP-KIT.COM unpacked:
+This directory is the kit @KIT@.COM unpacked:
 
   README.TXT    this file
   BUILD.COM     builds [.BIN]OPP.EXE and the help library OPP.HLB
@@ -22,12 +22,12 @@ This directory is the kit OPP-KIT.COM unpacked:
 
 To install it:
 
-  1. Copy OPP-KIT.COM to VMS in ASCII mode (with FTP, "ascii" before
+  1. Copy @KIT@.COM to VMS in ASCII mode (with FTP, "ascii" before
      "put"), make an empty directory for opp, and unpack the kit there:
 
        $ CREATE/DIRECTORY [.OPP]
        $ SET DEFAULT [.OPP]
-       $ @[-]OPP-KIT
+       $ @[-]@KIT@
 
   2. Build opp. This needs MACRO, LINK and LIBRARY alone, not poc:
 

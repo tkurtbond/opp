@@ -2,12 +2,13 @@
 """Check opp's kit for VAX/VMS on the guest: unpack it, build it, set it up,
 and use it.
 
-  tools/check-vax-kit
+  tools/check-vax-kit [KIT]
 
 VAX-VMS-PORT.md, step 7; make -f vaxGNUmakefile check-kit runs it, after
 making the kit (tools/make-vax-kit). One DCL procedure, run through poc's
-tools/vax-do, unpacks vax-kit/OPP-KIT.COM in a subdirectory of the guest's
-directory made for it, OPPT_KIT, and then must find:
+tools/vax-do, unpacks KIT (default vax-kit/OPP-KIT.COM; for a release,
+OPP-x-y-z.COM) in a subdirectory of the guest's directory made for it,
+OPPT_KIT, and then must find:
 
   - the kit refuses to unpack again where it has been unpacked;
   - @BUILD builds [.BIN]OPP.EXE and OPP.HLB, and @BUILD again does nothing;
@@ -33,7 +34,13 @@ import sys
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 home = os.path.expanduser("~")
 poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
-kit = os.path.join(root, "vax-kit", "OPP-KIT.COM")
+if len(sys.argv) > 2:
+    sys.exit("usage: tools/check-vax-kit [KIT]")
+kit = os.path.abspath(sys.argv[1]) if len(sys.argv) == 2 else os.path.join(root, "vax-kit", "OPP-KIT.COM")
+kit_file = os.path.basename(kit).upper()   # its name on the guest, as vax-do gives it
+kit_stem = kit_file[:-len(".COM")]
+if not kit_file.endswith(".COM") or kit_stem == "CHECKKIT":
+    sys.exit("check-vax-kit: %s is not a kit's name, NAME.COM" % os.path.basename(kit))
 work = os.path.join(root, "vax-kit", "check")
 if not os.path.exists(kit):
     sys.exit("check-vax-kit: there is no %s; run tools/make-vax-kit" % kit)
@@ -61,8 +68,8 @@ proc = [
     "$ CREATE/DIRECTORY [.OPPT_KIT]",
     "$ SET DEFAULT [.OPPT_KIT]",
 ]
-proc += mark("unpack", ["$ @'DEF'OPP-KIT", "$ S = $STATUS"])
-proc += mark("unpack-again", ["$ @'DEF'OPP-KIT", "$ S = $STATUS"])
+proc += mark("unpack", ["$ @'DEF'%s" % kit_stem, "$ S = $STATUS"])
+proc += mark("unpack-again", ["$ @'DEF'%s" % kit_stem, "$ S = $STATUS"])
 proc += mark("build", ["$ @BUILD", "$ S = $STATUS",
                        "$ WRITE SYS$OUTPUT \"exe \", F$SEARCH(\"[.BIN]OPP.EXE\")",
                        "$ WRITE SYS$OUTPUT \"hlb \", F$SEARCH(\"OPP.HLB\")",
@@ -103,7 +110,8 @@ with open(os.path.join(guest, "CHECKKIT.COM"), "w") as f:
 env = dict(os.environ)
 env.setdefault("VAX_DO_TIMEOUT", "3600")
 with open(os.path.join(work, "vax-do.log"), "wb") as logf:
-    r = subprocess.run([os.path.join(poc_src, "tools", "vax-do"), "-o", back, "CHECKKIT.COM", "OPP-KIT.COM"],
+    r = subprocess.run([os.path.join(poc_src, "tools", "vax-do"), "-o", back, "CHECKKIT.COM",
+                        os.path.basename(kit)],
                        cwd=guest, env=env, stdout=logf, stderr=subprocess.STDOUT)
 log = os.path.join(back, "VAXDO.LOG")
 if r.returncode == 2 or not os.path.exists(log):

@@ -63,16 +63,19 @@ test-vax:
 	$(MAKE) Opp OppDocTest
 	tools/vax-tests
 
-# Make the kit for VAX/VMS, vax-kit/OPP-KIT.COM, a DCL procedure that
-# unpacks itself, and check it on the guest: unpack, build, set up and use
-# it there (tools/make-vax-kit, tools/check-vax-kit; VAX-VMS-PORT.md, step
-# 7). check-kit compares with the host's Opp.
+# Make the kit for VAX/VMS, KIT, a DCL procedure that unpacks itself, and
+# check it on the guest: unpack, build, set up and use it there
+# (tools/make-vax-kit, tools/check-vax-kit; VAX-VMS-PORT.md, step 7).
+# check-kit compares with the host's Opp. A release's kit is OPP-x-y-z.COM
+# (RELEASE.md).
+KIT ?= vax-kit/OPP-KIT.COM
+
 kit:
-	tools/make-vax-kit
+	tools/make-vax-kit -o $(KIT)
 
 check-kit: kit
 	$(MAKE) Opp
-	tools/check-vax-kit
+	tools/check-vax-kit $(KIT)
 
 clean:
 	-rm -rfv $(BUILDDIR) vax-tests vax-kit

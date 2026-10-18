@@ -106,6 +106,14 @@ A release `x.y.z` is:
    the commit ("opp 0.1.0, 5e34921, of 2026-10-18, compiled by ..."). It
    takes `-o NAME` for the kit's name, so that `make dist` can write
    `OPP-x-y-z.COM`; without it the kit stays `vax-kit/OPP-KIT.COM`.
+
+   Done 2026-10-18. `make -f vaxGNUmakefile kit KIT=path` passes `-o`,
+   and `check-kit KIT=path` checks that kit: `tools/check-vax-kit` takes
+   its path. The kit's name, without `.COM`, is in its `README.TXT`
+   (`vms/README.TXT`'s `@KIT@`) and its first lines; `BUILD.COM` no longer
+   names it. `VERSION.TXT` reads "opp 0.0.0, 2342d1a-dirty, of
+   2026-10-18, compiled by poc 0.7.0 (fa7b7b2)". A kit `OPP-0-0-0.COM`
+   passed `check-kit` on the guest, 9 ok.
 6. **`make dist`, `make distcheck` and `make dist-sign`**, in
    `GNUmakefile`, writing into `dist/` (ignored by git):
    - `dist` refuses a working tree that differs from `HEAD`, and a `HEAD`

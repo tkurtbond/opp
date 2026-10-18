@@ -96,7 +96,8 @@ status is VMS's condition value, `SS$_NORMAL` for 0 and
 library, for `HELP OPP`.
 
 opp comes to VMS as a kit, `OPP-KIT.COM` (`make -f vaxGNUmakefile kit`
-writes it in `vax-kit/`), a DCL procedure that unpacks itself. Copy it in
+writes it in `vax-kit/`; a release's is `OPP-x-y-z.COM`, unpacked with
+`@[-]OPP-x-y-z`), a DCL procedure that unpacks itself. Copy it in
 ASCII mode, then in an empty directory:
 
     $ @[-]OPP-KIT
