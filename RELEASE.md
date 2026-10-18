@@ -15,10 +15,13 @@ user clones and builds. The one version-like thing is the VMS kit's
 the date ("opp 5e34921 of 2026-10-18, compiled by poc 0.7.0 ...").
 
 Building opp needs ArgParser, from its own repository
-(`tkurtbond/oberon-argparser`, `~/Repos/Oberon/ArgParser`), which has no
-versions either. opp needs ArgParser's argument filter (commit `19ede65`,
-VAX-VMS-PORT.md step 2), pushed to GitHub on 2026-10-18, before which a
-clone of both repositories from GitHub did not build.
+(`tkurtbond/oberon-argparser`, `~/Repos/Oberon/ArgParser`), and opp needs
+its argument filter (VAX-VMS-PORT.md step 2). **ArgParser 0.1.0**, the
+first release with the filter, was released on 2026-10-18 (tag `v0.1.0`,
+a GitHub release with its tarball, `.sha256` and `.asc`; its AGENTS.md,
+"Making a release", says how), so opp needs ArgParser 0.1.0 or later.
+Its release is the model for opp's, on a smaller scale: `VERSION` in its
+`GNUmakefile`, `NEWS.md`, and `make dist`, `distcheck` and `dist-sign`.
 
 ## What a release is
 
@@ -128,8 +131,10 @@ Once the pieces are built, a release `x.y.z` is made in these steps, on
    poc's source (`POC_SRC`). Compare the long-line counts `make corpus`
    prints with the last release's: `corpus: ok` alone does not show a
    line that has grown too long.
-3. **Commit** ("opp x.y.z"), and **push** `main`; also push ArgParser if
-   opp now needs a commit of it that is not on GitHub.
+3. **Commit** ("opp x.y.z"), and **push** `main`. If opp now needs
+   something of ArgParser's that is in no ArgParser release, release
+   ArgParser first (its AGENTS.md, "Making a release"), and say in
+   `NEWS.md` which version opp needs.
 4. **The tarball and the kit**, from that commit:
 
        make distcheck
@@ -154,8 +159,9 @@ Once the pieces are built, a release `x.y.z` is made in these steps, on
          dist/OPP-x-y-z.COM --title "opp x.y.z" --notes-file <notes>
 
    The notes are `NEWS.md`'s section for `x.y.z`, then how to install:
-   from the tarball, ArgParser first (its commit named, `make install`
-   there for voc, `make -f pocGNUmakefile install` for poc), then `make`
+   from the tarball, ArgParser first (the ArgParser release it needs,
+   0.1.0 or later, linked; `make install` there for voc, `make -f
+   pocGNUmakefile install` for poc), then `make`
    and `make install`, or the poc build; on VAX/VMS, the kit copied in
    ASCII mode, `@OPP-x-y-z` in an empty directory, `@BUILD`, `@SETUP`.
 7. **Record** the release: its date and what it held, in `PLAN.md` (as
@@ -172,12 +178,10 @@ The plan assumes these; each is the user's to change.
 - **The first version is 0.1.0**: opp is young, and 0.x leaves room to
   change its default output in a minor release.
 - **ArgParser is not bundled** in the tarball: it is a shared module, kept
-  in its own repository (AGENTS.md), and opp's README already says to
-  install it first. The notes name the ArgParser commit a release was
-  built and tested with. The VMS kit already carries its own copy of
-  `ArgParser.Mod`, compiled in, which is unchanged. The alternative is to
-  give ArgParser releases of its own and have opp's notes name one; that
-  is worth doing if anyone else comes to use it.
+  in its own repository (AGENTS.md), with releases of its own (settled
+  2026-10-18, with ArgParser 0.1.0). opp's release notes name the
+  oldest ArgParser release opp builds with, now 0.1.0. The VMS kit
+  carries its own copy of `ArgParser.Mod`, compiled in, as before.
 - **Releases are signed**: the tag and the tarball, with the user's gpg
   key, as poc's are.
 - **`--version`, not `-V`**: opp's short options are few, and `-V` is
