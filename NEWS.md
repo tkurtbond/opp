@@ -2,7 +2,7 @@
 
 What changed in each release of opp, newest first.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-18)
 
 The first release. opp, the Oberon pretty printer, reformats Oberon-2
 modules written for poc (the Peaseblossom Oberon Compiler) or voc
@@ -38,7 +38,7 @@ maximum line length.
   the command line's; `--config` and `--no-config` choose others or none.
 - **Builds** with voc or with poc; `make install` installs `opp` and its
   manual, `opp.1`. It needs ArgParser 0.1.0 or later
-  (`tkurtbond/oberon-argparser`).
+  (`tkurtbond/oberon-argparser`). `opp --version` prints opp's version.
 - **VAX/VMS 5.5-2**: built by poc and cross-compiled on Unix, opp runs on
   VMS with the same options and the same output. It comes as a kit,
   `OPP-0-1-0.COM`, a DCL procedure that unpacks itself; `@BUILD` builds it

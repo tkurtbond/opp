@@ -49,7 +49,7 @@ given.
 | `--config FILE` | read options from `FILE` instead of the config files |
 | `--no-config` | read no config file |
 | `-h`, `--help` | show the usage and exit |
-| `--version` | show opp's version, as `opp 0.0.0`, and exit |
+| `--version` | show opp's version, as `opp 0.1.0`, and exit |
 
 Exit status: 0 success; 1 a syntax error, an unreadable file, or (with
 `--check`) a file that would change; 2 a command line or config file
@@ -112,8 +112,8 @@ command `OPP` and makes `HELP OPP` work. The kit's `README.TXT` says more.
 ## Building, testing and installing
 
 opp is written in Oberon-2 and builds with either compiler. It needs
-`ArgParser` from [oberon-argparser](https://github.com/tkurtbond/oberon-argparser)
-(`~/Repos/Oberon/ArgParser`): `make install` there for voc, and
+`ArgParser` 0.1.0 or later, from [oberon-argparser](https://github.com/tkurtbond/oberon-argparser)
+(`~/Repos/Oberon/ArgParser`; its releases are on GitHub): `make install` there for voc, and
 `make -f pocGNUmakefile install` there for poc.
 
 ```sh

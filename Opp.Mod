@@ -34,7 +34,7 @@ IMPORT SYSTEM, ArgParser, Args, Err, In, Out, Platform, OppText, OppScanner,
 CONST
   (* opp's version, x.y.z, which make set-version sets (RELEASE.md); 0.0.0
      before the first release *)
-  version = "0.0.0";
+  version = "0.1.0";
   (* exit statuses (AGENTS.md, "Exit statuses") *)
   failureStatus = 1; internalStatus = 3;
   (* --damage: what to spoil *)
