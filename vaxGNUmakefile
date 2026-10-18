@@ -34,7 +34,7 @@ PROGRAMS = Opp OppDocTest
 # that import them; OppHost is vms/OppHost.Mod.
 MODULES = OppText OppScanner OppDoc OppFormat OppCheck OppHost ArgParser
 
-.PHONY: all clean
+.PHONY: all clean test-vax
 
 # Keep the symlinks to the sources instead of deleting them as intermediates.
 .SECONDARY:
@@ -57,5 +57,11 @@ $(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
 $(BUILDDIR)/%.com: $(BUILDDIR)/%.Mod $(MODULES:%=$(BUILDDIR)/%.Mod)
 	cd $(BUILDDIR) && $(POC) -target vax-dec-vms -build $*.Mod
 
+# Run the fixtures, and checks of --in-place and --output-dir, on the
+# VAX/VMS guest, against the host's Opp (tools/vax-tests).
+test-vax:
+	$(MAKE) Opp OppDocTest
+	tools/vax-tests
+
 clean:
-	-rm -rfv $(BUILDDIR)
+	-rm -rfv $(BUILDDIR) vax-tests

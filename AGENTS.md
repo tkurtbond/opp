@@ -41,6 +41,7 @@ make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/ma
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS with poc in vax-build/
+make -f vaxGNUmakefile test-vax   # run the fixtures and the in-place checks on the VAX guest
 tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 ```
 
@@ -71,6 +72,17 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   nothing on a VAX. There `OppHost.Mod` is `vms/OppHost.Mod`, the VMS
   implementation of `OppHost`: keep the two modules' interfaces the same,
   and check a change to either with `make -f vaxGNUmakefile` too.
+- **`tools/vax-tests`** (`make -f vaxGNUmakefile test-vax`) runs every
+  fixture on the VAX/VMS guest, through poc's `tools/vax-do`, and
+  compares what it prints with what the host's `Opp` prints; then checks
+  of `--in-place` (new versions) and `--output-dir`, after
+  `tests/in-place.sh`. It needs the guest (`VAX_HOST`, `VAX_NETRC`) and
+  poc's source (`POC_SRC`), and takes a few minutes. Where the guest must
+  differ, `tests/vax/NAME.err` (or `.out`, `.status`) is what it prints
+  instead, copied from `vax-tests/results/` after a real run and read;
+  `tests/vax/NAME.skip` says why a fixture cannot be run there. A change
+  to `vms/OppHost.Mod` or to how opp uses `OppHost` is checked with it
+  too.
 - **`OppDocTest` is the in-process check battery** of the layout engine,
   run by `tests/opp-doc-selftest.test`, which embeds its output: after
   adding a check, regenerate that fixture from a real run. Prove a new

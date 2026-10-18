@@ -274,7 +274,23 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
 
 5. **The fixtures on the VAX** (`tools/vax-tests`, below), then a VMS
    version of `tests/in-place.sh` for `--in-place` (versions) and
-   `--output-dir` (VMS directories).
+   `--output-dir` (VMS directories). Done 2026-10-18: `make -f
+   vaxGNUmakefile test-vax` runs `tools/vax-tests`, which runs 117 of the
+   118 fixtures and 22 checks of `--in-place` and `--output-dir` on the
+   guest, all passing, in one `vax-do` run of a few minutes. Only
+   `opp-output-dir-clash` prints something else there, its output name
+   VMS's (`tests/vax/opp-output-dir-clash.err`), and `opp-output-dir-own`
+   cannot be made for the guest (`tests/vax/opp-output-dir-own.skip`); the
+   usage's `--config` help, VMS's, is substituted in what the host prints.
+   The checks show that on VMS `--in-place` writes a Stream_LF new version
+   of a variable-length file and leaves the old one as it was, gives none
+   to a file that is formatted already, has a syntax error or fails the
+   safety check, keeps the protection, reads a version that is named and
+   writes above the highest, and expands a wildcard; and that
+   `--output-dir` takes `[.OUT]`, refuses the input's own directory, a
+   directory that is not there, and two files of one name in different
+   case. A bug planted in `vms/OppHost.Mod` (a version kept on the name
+   written) fails its check.
 6. **Documentation.** A VMS section in `opp.1` and `README.md`: the
    foreign command, folded options, versions with `--in-place`, the config
    file names, the 1024-character record limit and the DCL hazards. Also
@@ -291,6 +307,10 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    should try it once.
 
 ## Testing on the VAX
+
+(As planned before step 5; `tools/vax-tests`'s own header says how it
+is done now. The fixtures are compared with the host's `Opp`, so their
+mixed output need not be reproduced on the guest.)
 
 The model is poc's `tools/vax-suite`: build for the host and for the VAX,
 run both, compare. It drives the guest through `tools/vax-do` (FTP and

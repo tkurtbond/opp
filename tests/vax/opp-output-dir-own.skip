@@ -1,0 +1,1 @@
+The fixture's --output-dir is its input's own directory, which on the guest becomes a subdirectory apart from the input; the in-place check "--output-dir: its own input refused" (I09) is the VMS form.

@@ -1,0 +1,589 @@
+#!/usr/bin/python3 -I
+"""Run opp's fixtures, and checks of --in-place and --output-dir, on VAX/VMS.
+
+  tools/vax-tests [-v] [-n] [NAME...]
+
+VAX-VMS-PORT.md, step 5. opp and OppDocTest are cross-compiled for
+vax-dec-vms with poc, with poc's runtime compiled from its source
+(rtl/vax), so the guest needs nothing installed; then one DCL procedure
+builds them on the VAX/VMS guest and runs each fixture of tests/*.test
+(or those named), and the checks below, through poc's tools/vax-do, which
+copies the files there and the log back.
+
+Each fixture is run here too, with ./Opp (or BINDIR's), as
+tests/run-tests.sh runs it, and the guest must print what it prints, on
+standard output and standard error apart, and exit with its status
+(SS$_NORMAL for 0, %X10000000 + 8 * n + 2 for n). The guest has no tree of
+directories, so each file of the repository a fixture names goes to the
+guest's directory, under a name of its own (tests/data/fmt-align.Mod is
+fmt-align.Mod, tests/data/config/user/opp/opp.conf is
+CONFIG_USER_OPP_OPP.CONF), and each directory a fixture runs in is a
+subdirectory made for it; in what the host prints, each argument that
+names one is replaced by the name the guest is given. The config files
+are VMS's: a fixture's user config file, from XDG_CONFIG_HOME or HOME, is
+the one OPP$CONFIG names, and a directory's .opp.conf is OPP.CONF in its
+subdirectory. Standard input is NL: unless the fixture names a file.
+
+The help that names the config files, OppHost.configHelp, is VMS's on the
+guest. Where the guest must print something else, tests/vax/NAME.out,
+NAME.err and NAME.status say what, instead of the host's; a fixture that
+cannot be made for the guest has tests/vax/NAME.skip, saying why. Each run's guest output
+is kept in vax-tests/results/ (NAME.out, NAME.err, NAME.status) to make
+one from; read it before committing it.
+
+The checks of --in-place and --output-dir are tests/in-place.sh's, made
+for VMS, where --in-place writes a new version: they run in
+subdirectories of their own.
+
+POC_SRC is poc's source tree (default ~/Repos/Oberon/Peaseblossom-main),
+for rtl/vax and tools/vax-do; ARGPARSER_SRC is ArgParser's (default
+~/Repos/Oberon/ArgParser); VAX_HOST and VAX_NETRC are tools/vax-do's.
+The work is done in vax-tests/, which is made again each run; -n
+prepares it, with the procedure, VAXTESTS.COM, and stops before the guest. Prints
+FAILED for each failure, then "vax: N ok, M failed"; exits 0 if all
+passed, 1 if not, 2 if the guest could not be used.
+"""
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+home = os.path.expanduser("~")
+poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
+argparser_src = os.environ.get("ARGPARSER_SRC", os.path.join(home, "Repos/Oberon/ArgParser"))
+bindir = os.environ.get("BINDIR", ".")
+host_opp_dir = bindir if os.path.isabs(bindir) else os.path.join(root, bindir)
+work = os.path.join(root, "vax-tests")
+data = os.path.join(root, "tests", "data")
+overrides = os.path.join(root, "tests", "vax")
+
+verbose = False
+prepare_only = False
+names = []
+for a in sys.argv[1:]:
+    if a == "-v":
+        verbose = True
+    elif a == "-n":
+        prepare_only = True
+    elif a.startswith("-"):
+        sys.exit("usage: tools/vax-tests [-v] [-n] [NAME...]")
+    else:
+        names.append(os.path.basename(a)[:-5] if a.endswith(".test") else os.path.basename(a))
+
+
+def run(args, **kw):
+    return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
+
+
+def die(msg, status=2):
+    sys.stderr.write("vax-tests: %s\n" % msg)
+    sys.exit(status)
+
+
+# ---- the build ----
+
+if os.path.isdir(work):
+    shutil.rmtree(work)
+build = os.path.join(work, "build")
+guest = os.path.join(work, "guest")
+back = os.path.join(work, "back")
+results = os.path.join(work, "results")
+for d in (build, guest, back, results):
+    os.makedirs(d)
+
+for m in ["OppText", "OppScanner", "OppDoc", "OppFormat", "OppCheck", "Opp", "OppDocTest"]:
+    shutil.copy(os.path.join(root, m + ".Mod"), build)
+shutil.copy(os.path.join(root, "vms", "OppHost.Mod"), build)
+shutil.copy(os.path.join(argparser_src, "ArgParser.Mod"), build)
+for program in ["Opp", "OppDocTest"]:
+    r = run(["poc", "-target", "vax-dec-vms", "-clear-library-path", "-import-path",
+             os.path.join(poc_src, "rtl", "vax"), "-build", program + ".Mod"], cwd=build)
+    if r.returncode != 0:
+        sys.stderr.write(r.stdout.decode("latin-1") + r.stderr.decode("latin-1"))
+        die("poc could not build %s for vax-dec-vms" % program, 1)
+marfiles = sorted(f for f in os.listdir(build) if f.endswith(".mar"))
+for f in marfiles + ["Opp.com", "OppDocTest.com"]:
+    shutil.copy(os.path.join(build, f), guest)
+shutil.copy(os.path.join(poc_src, "rtl", "vax", "PocRtl.mar"), os.path.join(guest, "POCRTL.MAR"))
+
+# ---- files and directories on the guest ----
+
+uploads = {}     # a repository file's path -> its name on the guest
+subdirs = {}     # a repository directory's path -> its subdirectory's name
+
+
+def guest_name(path):
+    """The name a repository file has on the guest: its path from tests/data
+    (or the repository), its directories joined by _, one period."""
+    rel = os.path.relpath(path, data if path.startswith(data + os.sep) else root)
+    base, ext = os.path.splitext(rel)
+    if base.startswith(".") or "/." in base:
+        base = base.replace("/.", "/_")
+        base = "_" + base[1:] if base.startswith(".") else base
+    base = re.sub(r"[^A-Za-z0-9_$-]", "_", base)
+    name = base + ext
+    if len(base) > 39 or len(ext) > 40 or not ext:
+        die("%s has no name the guest can hold" % rel)
+    return name
+
+
+def upload(path):
+    if path not in uploads:
+        name = guest_name(path)
+        if name.upper() in (n.upper() for n in uploads.values()):
+            die("two files would be %s on the guest" % name)
+        uploads[path] = name
+        shutil.copy(path, os.path.join(guest, name))
+    return uploads[path]
+
+
+def subdir(path):
+    """The subdirectory a repository directory is on the guest, named after
+    its path from tests/data: OPPT_CONFIG_PROJECT, or OPPT_DATA for
+    tests/data itself."""
+    if path not in subdirs:
+        rel = os.path.relpath(path, data) if path.startswith(data + os.sep) else "DATA"
+        name = "OPPT_" + re.sub(r"[^A-Za-z0-9_$-]", "_", rel).upper()
+        if path != data and not path.startswith(data + os.sep) or len(name) > 39:
+            die("%s has no subdirectory the guest can hold" % path)
+        subdirs[path] = name
+    return subdirs[path]
+
+
+def quote(s):
+    return '"' + s.replace('"', '""') + '"'
+
+
+# ---- the fixtures ----
+
+def parse(fixture):
+    f = {"program": None, "args": [], "env": [], "dir": ".", "input": None, "status": None}
+    for line in open(fixture, encoding="latin-1"):
+        line = line.rstrip("\n")
+        if line == "output":
+            break
+        if line.startswith("#"):
+            continue
+        if line == "arg":
+            f["args"].append("")
+        elif line.startswith("arg "):
+            f["args"].append(line[4:])
+        elif line.startswith("program "):
+            f["program"] = line[8:]
+        elif line.startswith("env "):
+            f["env"].append(line[4:])
+        elif line.startswith("dir "):
+            f["dir"] = line[4:]
+        elif line.startswith("input "):
+            f["input"] = line[6:]
+        elif line.startswith("status "):
+            f["status"] = int(line[7:])
+    return f
+
+
+fixtures = names or sorted(os.path.basename(p)[:-5] for p in os.listdir(os.path.join(root, "tests"))
+                           if p.endswith(".test"))
+skipped = [n for n in fixtures if os.path.exists(os.path.join(overrides, n + ".skip"))]
+fixtures = [n for n in fixtures if n not in skipped]
+
+
+def config_help(path):
+    """OppHost.configHelp in the module at path."""
+    m = re.search(r'configHelp\* = "([^"]*)"', open(path, encoding="latin-1").read())
+    if not m:
+        die("no configHelp in %s" % path)
+    return m.group(1)
+
+
+help_subst = (config_help(os.path.join(root, "OppHost.Mod")),
+              config_help(os.path.join(root, "vms", "OppHost.Mod")))
+for n in fixtures:
+    if not os.path.isfile(os.path.join(root, "tests", n + ".test")):
+        die("no such test: %s" % n)
+
+proc = [
+    "$ ! Written by tools/vax-tests: builds opp and runs its fixtures and checks",
+    "$ SET NOON",
+    "$ DEF = F$ENVIRONMENT(\"DEFAULT\")",
+    "$ DEFINE/NOLOG POC$RTL 'DEF'",
+    "$ MACRO/OBJECT POCRTL.MAR",
+    "$ IF .NOT. $STATUS THEN GOTO FAILED",
+    "$ @OPPDOCTEST",
+    "$ IF .NOT. $STATUS THEN GOTO FAILED",
+    "$ @OPP",
+    "$ IF .NOT. $STATUS THEN GOTO FAILED",
+    "$ OPPT_OPP :== $'DEF'OPP.EXE",
+    "$ OPPT_DOCTEST :== $'DEF'OPPDOCTEST.EXE",
+    "$ IF F$SEARCH(\"OPP.CONF\") .NES. \"\" THEN WRITE SYS$OUTPUT \"%%vt build failed: there is an OPP.CONF here\"",
+    "$ IF F$SEARCH(\"OPP.CONF\") .NES. \"\" THEN EXIT 1",
+]
+made = [f[:-4].upper() + ".OBJ" for f in marfiles] + ["POCRTL.OBJ", "OPP.EXE", "OPPDOCTEST.EXE",
+                                                     "OPP.OPT", "OPPDOCTEST.OPT"]
+
+
+def run_lines(rid, command, where=None, input_spec="NL:", config=None):
+    """DCL that runs command in the subdirectory where (or the guest's own
+    directory), and puts its status, output and error output in the log."""
+    lines = []
+    if where:
+        lines.append("$ SET DEFAULT [.%s]" % where)
+    lines += [
+        "$ DEFINE/USER_MODE SYS$INPUT %s" % input_spec,
+        "$ DEFINE/USER_MODE SYS$OUTPUT 'DEF'%s.OUT" % rid,
+        "$ DEFINE/USER_MODE SYS$ERROR 'DEF'%s.ERR" % rid,
+        "$ DEFINE/USER_MODE OPP$CONFIG %s" % (config or "'DEF'OPPT_NONE.CONF"),
+        "$ " + command,
+        "$ S = $STATUS",
+    ]
+    if where:
+        lines.append("$ SET DEFAULT 'DEF'")
+    lines += [
+        "$ WRITE SYS$OUTPUT \"%%%%vt status %s \", S" % rid,
+        "$ WRITE SYS$OUTPUT \"%%%%vt out %s\"" % rid,
+        "$ IF F$SEARCH(\"%s.OUT\") .NES. \"\" THEN TYPE %s.OUT" % (rid, rid),
+        "$ WRITE SYS$OUTPUT \"%%%%vt err %s\"" % rid,
+        "$ IF F$SEARCH(\"%s.ERR\") .NES. \"\" THEN TYPE %s.ERR" % (rid, rid),
+        "$ WRITE SYS$OUTPUT \"%%%%vt end %s\"" % rid,
+        "$ IF F$SEARCH(\"%s.OUT\") .NES. \"\" THEN DELETE/NOLOG %s.OUT;*" % (rid, rid),
+        "$ IF F$SEARCH(\"%s.ERR\") .NES. \"\" THEN DELETE/NOLOG %s.ERR;*" % (rid, rid),
+    ]
+    return lines
+
+
+host = {}      # run id -> (out, err, status) the guest must give
+labels = {}    # run id -> what it is, for messages
+setup = []     # DCL that makes the subdirectories, before the runs
+runs = []
+for k, n in enumerate(fixtures, 1):
+    f = parse(os.path.join(root, "tests", n + ".test"))
+    rid = "F%03d" % k
+    labels[rid] = n
+    rundir = os.path.normpath(os.path.join(root, f["dir"]))
+    where = None
+    if rundir != root:
+        where = subdir(rundir)
+    prefix = "[-]" if where else ""
+
+    def guest_path(p):
+        """The guest's name for p, relative to where the fixture runs."""
+        full = os.path.normpath(os.path.join(rundir, p))
+        if os.path.isfile(full) and full.startswith(root + os.sep):
+            return prefix + upload(full)
+        if os.path.isdir(full) and full.startswith(root + os.sep) and p not in ("", "."):
+            return "[%s.%s]" % ("-" if where else "", subdir(full))
+        return None
+
+    gargs, subst = [], []
+    for a in f["args"]:
+        g = guest_path(a) if a and not a.startswith("-") else None
+        if g is None and "=" in a and a.startswith("--"):
+            opt, val = a.split("=", 1)
+            gv = guest_path(val)
+            if gv is not None:
+                g = opt + "=" + gv
+                subst.append((val, gv))
+        elif g is not None:
+            subst.append((a, g))
+        gargs.append(g if g is not None else a)
+    # the user's config file, as tests/run-tests.sh gives XDG_CONFIG_HOME
+    env = {"XDG_CONFIG_HOME": os.path.join(data, "config", "none")}
+    for e in f["env"]:
+        k_, v = e.split("=", 1)
+        env[k_] = v
+    if env.get("XDG_CONFIG_HOME"):
+        user = os.path.join(env["XDG_CONFIG_HOME"], "opp", "opp.conf")
+    elif env.get("HOME"):
+        user = os.path.join(env["HOME"], ".config", "opp", "opp.conf")
+    else:
+        user = None
+    config = None
+    if user is not None:
+        full = os.path.normpath(os.path.join(rundir, user))
+        if os.path.isfile(full):
+            config = "'DEF'" + upload(full)
+    if where and os.path.isfile(os.path.join(rundir, ".opp.conf")):
+        conf = upload(os.path.join(rundir, ".opp.conf"))
+        line = "$ COPY %s [.%s]OPP.CONF" % (conf, where)
+        if line not in setup:
+            setup.append(line)
+    input_spec = "NL:"
+    if f["input"]:
+        input_spec = "'DEF'" + upload(os.path.normpath(os.path.join(rundir, f["input"])))
+    symbol = {"Opp": "OPPT_OPP", "OppDocTest": "OPPT_DOCTEST"}[f["program"]]
+    runs += run_lines(rid, symbol + "".join(" " + quote(a) for a in gargs), where, input_spec, config)
+
+    # what the host prints, the arguments replaced by the guest's names
+    henv = dict(os.environ)
+    henv.update(env)
+    stdin = open(os.path.join(rundir, f["input"]) if f["input"] else os.devnull, "rb")
+    r = subprocess.run([os.path.join(host_opp_dir, f["program"])] + f["args"], cwd=rundir,
+                       env=henv, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = r.stdout.decode("latin-1"), r.stderr.decode("latin-1")
+    for a, g in [help_subst] + sorted(subst, key=lambda x: -len(x[0])):
+        out, err = out.replace(a, g), err.replace(a, g)
+    if r.returncode != f["status"]:
+        die("%s: the host's opp exits %d, not %d: run make test" % (n, r.returncode, f["status"]), 1)
+    expect = [out, err, r.returncode]
+    for i, ext in enumerate(["out", "err", "status"]):
+        p = os.path.join(overrides, "%s.%s" % (n, ext))
+        if os.path.exists(p):
+            text = open(p, encoding="latin-1").read()
+            expect[i] = int(text) if ext == "status" else text
+    host[rid] = tuple(expect)
+
+# ---- the checks of --in-place and --output-dir, after tests/in-place.sh ----
+
+statements = upload(os.path.join(data, "fmt-statements.Mod"))
+formatted = upload(os.path.join(data, "formatted.Mod"))
+paren = upload(os.path.join(data, "fmt-error-paren.Mod"))
+text = {p: open(os.path.join(data, p), encoding="latin-1").read()
+        for p in ["fmt-statements.Mod", "formatted.Mod", "fmt-error-paren.Mod"]}
+packed = run([os.path.join(host_opp_dir, "Opp"), "--no-config", "-p",
+              os.path.join(data, "fmt-statements.Mod")]).stdout.decode("latin-1")
+checks = []    # (run id, description, a function of the run's parts that is True if it passed)
+
+
+def check(rid, what, test):
+    checks.append((rid, what, test))
+    labels.setdefault(rid, "in-place")
+
+
+def show(rid, lines):
+    """DCL that writes what lines write into the log, as rid's part shown."""
+    return (["$ WRITE SYS$OUTPUT \"%%%%vt show %s\"" % rid] + lines
+            + ["$ WRITE SYS$OUTPUT \"%%%%vt end %s\"" % rid])
+
+
+def listing(spec):
+    return ["$ DIRECTORY/NOHEADING/NOTRAILING/VERSIONS=10 %s" % spec]
+
+
+ip = ["$ CREATE/DIRECTORY [.OPPT_IP]",
+      "$ COPY %s [.OPPT_IP]A.MOD" % statements,
+      "$ COPY %s [.OPPT_IP]B.MOD" % formatted,
+      "$ COPY %s [.OPPT_IP]C.MOD" % paren,
+      "$ COPY %s [.OPPT_IP]P.MOD" % statements,
+      "$ COPY %s [.OPPT_IP]D.MOD" % statements,
+      "$ COPY %s [.OPPT_IP]Q.MOD" % statements,
+      "$ SET PROTECTION=(S:RWED,O:RWED,G:R,W) [.OPPT_IP]Q.MOD",
+      "$ COPY %s [.OPPT_IP]V.MOD" % statements,
+      "$ COPY %s [.OPPT_IP]V.MOD" % formatted,
+      "$ CREATE/DIRECTORY [.OPPT_WILD]",
+      "$ COPY %s [.OPPT_WILD]X1.MOD" % statements,
+      "$ COPY %s [.OPPT_WILD]X2.MOD" % formatted,
+      "$ CREATE/DIRECTORY [.OPPT_OD]",
+      "$ CREATE/DIRECTORY [.OPPT_OD.OUT]",
+      "$ CREATE/DIRECTORY [.OPPT_OD.D2]",
+      "$ COPY %s [.OPPT_OD]A.MOD" % statements,
+      "$ COPY %s [.OPPT_OD]B.MOD" % formatted,
+      "$ COPY %s [.OPPT_OD]C.MOD" % paren,
+      "$ COPY %s [.OPPT_OD.D2]A.MOD" % statements]
+# a file to format, one formatted already, one with a syntax error; the
+# options in capitals, as DCL leaves them
+ip += run_lines("I01", "OPPT_OPP --IN-PLACE A.MOD B.MOD C.MOD", "OPPT_IP")
+ip += show("I01", listing("[.OPPT_IP]A.MOD;*,B.MOD;*,C.MOD;*") + ["$ WRITE SYS$OUTPUT \"%%vt-cut\""]
+           + ["$ TYPE [.OPPT_IP]A.MOD", "$ WRITE SYS$OUTPUT \"%%vt-cut\"", "$ TYPE [.OPPT_IP]A.MOD;-1",
+              "$ WRITE SYS$OUTPUT \"%%vt-cut\"",
+              "$ WRITE SYS$OUTPUT F$FILE_ATTRIBUTES(\"[.OPPT_IP]A.MOD\",\"RFM\"), \" \", "
+              "F$FILE_ATTRIBUTES(\"[.OPPT_IP]A.MOD;-1\",\"RFM\")"])
+
+
+def versions(show_text, name):
+    return len(re.findall(r"\]%s;\d+" % re.escape(name), show_text))
+
+
+def cut(show_text, i):
+    return show_text.split("%%vt-cut\n")[i]
+
+
+check("I01", "exit status 1 for the syntax error", lambda r: r["status"] == 1)
+check("I01", "the syntax error reported, and nothing else",
+      lambda r: r["err"] == "C.MOD:3:14: expected ')', found ';'\n" and r["out"] == "")
+check("I01", "the file formatted, as a new version", lambda r: versions(cut(r["show"], 0), "A.MOD") == 2)
+check("I01", "the new version holds the formatted text", lambda r: cut(r["show"], 1) == text["formatted.Mod"])
+check("I01", "the old version is left as it was", lambda r: cut(r["show"], 2) == text["fmt-statements.Mod"])
+check("I01", "the new version is Stream_LF; the old one, from FTP, variable-length",
+      lambda r: cut(r["show"], 3).split() == ["STMLF", "VAR"])
+check("I01", "no new version of the formatted file", lambda r: versions(cut(r["show"], 0), "B.MOD") == 1)
+check("I01", "no new version of the file with the error",
+      lambda r: versions(cut(r["show"], 0), "C.MOD") == 1)
+
+# the options apply: --pack
+ip += run_lines("I02", "OPPT_OPP -P --IN-PLACE P.MOD", "OPPT_IP")
+ip += show("I02", ["$ TYPE [.OPPT_IP]P.MOD"])
+check("I02", "--pack --in-place", lambda r: r["status"] == 0 and r["show"] == packed)
+
+# a file whose formatting fails the safety check gets no new version
+ip += run_lines("I03", "OPPT_OPP --DAMAGE 1 --IN-PLACE D.MOD", "OPPT_IP")
+ip += show("I03", listing("[.OPPT_IP]D.MOD;*"))
+check("I03", "exit status 3 for the failed safety check", lambda r: r["status"] == 3)
+check("I03", "no new version when the check fails", lambda r: versions(r["show"], "D.MOD") == 1)
+
+# the new version has the old one's protection
+ip += run_lines("I04", "OPPT_OPP --IN-PLACE Q.MOD", "OPPT_IP")
+ip += show("I04", ["$ WRITE SYS$OUTPUT F$FILE_ATTRIBUTES(\"[.OPPT_IP]Q.MOD\",\"PRO\")",
+                   "$ WRITE SYS$OUTPUT F$FILE_ATTRIBUTES(\"[.OPPT_IP]Q.MOD;-1\",\"PRO\")"])
+check("I04", "the new version keeps the old one's protection",
+      lambda r: r["status"] == 0 and r["show"].splitlines()
+      == ["SYSTEM=RWED, OWNER=RWED, GROUP=R, WORLD"] * 2)
+
+# a file named with a version: that version read, a new one above the highest
+ip += run_lines("I05", "OPPT_OPP --IN-PLACE \"V.MOD;1\"", "OPPT_IP")
+ip += show("I05", listing("[.OPPT_IP]V.MOD;*") + ["$ TYPE [.OPPT_IP]V.MOD"])
+check("I05", "a version named: read, and a new version above the highest",
+      lambda r: r["status"] == 0 and versions(r["show"], "V.MOD") == 3
+      and r["show"].endswith(text["formatted.Mod"]))
+
+# a wildcard, which opp expands itself
+ip += run_lines("I06", "OPPT_OPP --IN-PLACE *.MOD", "OPPT_WILD")
+ip += show("I06", listing("[.OPPT_WILD]*.MOD;*"))
+check("I06", "a wildcard: each file it names formatted, the formatted one left alone",
+      lambda r: r["status"] == 0 and versions(r["show"], "X1.MOD") == 2
+      and versions(r["show"], "X2.MOD") == 1)
+
+# --output-dir: each file's formatted text in the directory, nothing for the error
+ip += run_lines("I07", "OPPT_OPP --OUTPUT-DIR [.OUT] A.MOD B.MOD C.MOD", "OPPT_OD")
+ip += show("I07", listing("[.OPPT_OD]*.MOD;*") + ["$ WRITE SYS$OUTPUT \"%%vt-cut\""]
+           + listing("[.OPPT_OD.OUT]*.*;*") + ["$ WRITE SYS$OUTPUT \"%%vt-cut\"",
+                                              "$ TYPE [.OPPT_OD.OUT]A.MOD"])
+check("I07", "--output-dir: exit status 1, the syntax error reported",
+      lambda r: r["status"] == 1 and r["err"] == "C.MOD:3:14: expected ')', found ';'\n")
+check("I07", "--output-dir: the inputs untouched",
+      lambda r: [versions(cut(r["show"], 0), m) for m in ("A.MOD", "B.MOD", "C.MOD")] == [1, 1, 1])
+check("I07", "--output-dir: the two files written, nothing else",
+      lambda r: re.findall(r"\]([A-Z0-9.]+);", cut(r["show"], 1)) == ["A.MOD", "B.MOD"])
+check("I07", "--output-dir: the file formatted", lambda r: cut(r["show"], 2) == text["formatted.Mod"])
+
+# the options apply, as a new version there
+ip += run_lines("I08", "OPPT_OPP -P --OUTPUT-DIR [.OUT] A.MOD", "OPPT_OD")
+ip += show("I08", ["$ TYPE [.OPPT_OD.OUT]A.MOD"])
+check("I08", "--output-dir with --pack", lambda r: r["status"] == 0 and r["show"] == packed)
+
+# the input's own directory: refused
+ip += run_lines("I09", "OPPT_OPP --OUTPUT-DIR [] A.MOD", "OPPT_OD")
+ip += show("I09", listing("[.OPPT_OD]A.MOD;*"))
+check("I09", "--output-dir: its own input refused, exit status 1",
+      lambda r: r["status"] == 1 and "would write over A.MOD itself" in r["err"]
+      and versions(r["show"], "A.MOD") == 1)
+
+# a directory that is not there
+ip += run_lines("I10", "OPPT_OPP --OUTPUT-DIR [.NOSUCH] A.MOD", "OPPT_OD")
+check("I10", "--output-dir: no such directory, exit status 2",
+      lambda r: r["status"] == 2 and r["err"] == "opp: --output-dir: there is no directory [.NOSUCH]\n")
+
+# two files of one name, in either case
+ip += run_lines("I11", "OPPT_OPP --OUTPUT-DIR [.OUT] A.MOD \"[.D2]a.mod\"", "OPPT_OD")
+check("I11", "--output-dir: two files of one name, exit status 2",
+      lambda r: r["status"] == 2 and "would both be written to" in r["err"])
+
+cleanup = []
+for d in ["OPPT_OD.OUT", "OPPT_OD.D2", "OPPT_OD", "OPPT_WILD", "OPPT_IP"] + sorted(subdirs.values()):
+    parent, _, leaf = d.rpartition(".")
+    cleanup += ["$ IF F$SEARCH(\"[.%s]*.*;*\") .NES. \"\" THEN DELETE/NOLOG [.%s]*.*;*" % (d, d),
+                "$ IF F$SEARCH(\"%s%s.DIR\") .NES. \"\" THEN SET PROTECTION=(O:RWED) %s%s.DIR"
+                % ("[.%s]" % parent if parent else "", leaf, "[.%s]" % parent if parent else "", leaf),
+                "$ IF F$SEARCH(\"%s%s.DIR\") .NES. \"\" THEN DELETE/NOLOG %s%s.DIR;*"
+                % ("[.%s]" % parent if parent else "", leaf, "[.%s]" % parent if parent else "", leaf)]
+cleanup += ["$ IF F$SEARCH(\"%s\") .NES. \"\" THEN DELETE/NOLOG %s;*" % (f, f) for f in made]
+cleanup += ["$ DELETE/SYMBOL/GLOBAL OPPT_OPP", "$ DELETE/SYMBOL/GLOBAL OPPT_DOCTEST", "$ DEASSIGN POC$RTL"]
+
+mkdirs = ["$ CREATE/DIRECTORY [.%s]" % d for d in sorted(subdirs.values())]
+proc += mkdirs + setup + runs + ip + cleanup + ["$ EXIT 1", "$ FAILED:", "$ S = $STATUS",
+                                                "$ WRITE SYS$OUTPUT \"%%vt build failed \", S"] \
+    + cleanup + ["$ EXIT S"]
+with open(os.path.join(guest, "VAXTESTS.COM"), "w", encoding="latin-1") as f:
+    f.write("\n".join(proc) + "\n")
+
+# ---- the guest ----
+
+if prepare_only:
+    print("vax-tests: %d runs and %d checks prepared in %s" % (len(host), len(checks), guest))
+    sys.exit(0)
+
+env = dict(os.environ)
+env.setdefault("VAX_DO_TIMEOUT", "7200")
+files = sorted(p for p in os.listdir(guest) if p != "VAXTESTS.COM")
+with open(os.path.join(work, "vax-do.log"), "wb") as logf:
+    r = subprocess.run([os.path.join(poc_src, "tools", "vax-do"), "-o", back, "VAXTESTS.COM"] + files,
+                       cwd=guest, env=env, stdout=logf, stderr=subprocess.STDOUT)
+if r.returncode == 2:
+    sys.stderr.write(open(os.path.join(work, "vax-do.log"), encoding="latin-1").read())
+    die("the VAX guest could not be used")
+logpath = os.path.join(back, "VAXDO.LOG")
+if not os.path.exists(logpath):
+    sys.stderr.write(open(os.path.join(work, "vax-do.log"), encoding="latin-1").read())
+    die("no log came back from the guest", 1)
+
+parts = {}
+part = None
+for line in open(logpath, encoding="latin-1").read().splitlines():
+    m = re.match(r"^%%vt (out|err|show|end) ([FI]\d+)$", line)
+    if m:
+        part = None if m.group(1) == "end" else (m.group(2), m.group(1))
+        if part:
+            parts.setdefault(part, "")
+        continue
+    m = re.match(r"^%%vt status ([FI]\d+) %X([0-9A-F]+)$", line)
+    if m:
+        s = int(m.group(2), 16)
+        parts[(m.group(1), "status")] = 0 if s == 1 else (s & 0xFFF8) // 8
+        continue
+    if line.startswith("%%vt build failed"):
+        sys.stderr.write(open(logpath, encoding="latin-1").read())
+        die("the build failed on the guest", 1)
+    if part:
+        parts[part] += line + "\n"
+
+
+def normal(s):
+    """s as compared: no white space at the ends of lines, a last line ended."""
+    s = "\n".join(l.rstrip() for l in s.split("\n"))
+    return s if s == "" or s.endswith("\n") else s + "\n"
+
+
+ok = failed = 0
+for rid in sorted(host):
+    n = labels[rid]
+    got = (parts.get((rid, "out"), ""), parts.get((rid, "err"), ""), parts.get((rid, "status")))
+    for ext, value in zip(["out", "err", "status"], got):
+        with open(os.path.join(results, "%s.%s" % (n, ext)), "w", encoding="latin-1") as f:
+            f.write("%s\n" % value if ext == "status" else value)
+    want = host[rid]
+    if got[2] == want[2] and normal(got[0]) == normal(want[0]) and normal(got[1]) == normal(want[1]):
+        ok += 1
+        if verbose:
+            print("ok: %s" % n)
+    else:
+        failed += 1
+        print("FAILED: %s" % n)
+        if got[2] != want[2]:
+            print("  exit status: expected %s, got %s" % (want[2], got[2]))
+        for what, g, w in (("output", got[0], want[0]), ("error output", got[1], want[1])):
+            if normal(g) != normal(w):
+                print("  %s: expected" % what)
+                print("".join("    " + l + "\n" for l in normal(w).splitlines()), end="")
+                print("  got")
+                print("".join("    " + l + "\n" for l in normal(g).splitlines()), end="")
+for rid, what, test in checks:
+    r = {"out": parts.get((rid, "out"), ""), "err": parts.get((rid, "err"), ""),
+         "status": parts.get((rid, "status")), "show": parts.get((rid, "show"), "")}
+    try:
+        passed = test(r)
+    except (IndexError, ValueError):
+        passed = False
+    if passed:
+        ok += 1
+        if verbose:
+            print("ok: in-place: %s" % what)
+    else:
+        failed += 1
+        print("FAILED: in-place: %s" % what)
+        print("  status %s; output %r; error output %r" % (r["status"], r["out"], r["err"]))
+        print("".join("    " + l + "\n" for l in r["show"].splitlines()), end="")
+for n in skipped:
+    print("skipped: %s: %s" % (n, open(os.path.join(overrides, n + ".skip")).read().strip()))
+print("vax: %d ok, %d failed%s" % (ok, failed, ", %d skipped" % len(skipped) if skipped else ""))
+sys.exit(0 if failed == 0 else 1)
