@@ -34,7 +34,7 @@ PROGRAMS = Opp OppDocTest
 # that import them; OppHost is vms/OppHost.Mod.
 MODULES = OppText OppScanner OppDoc OppFormat OppCheck OppHost ArgParser
 
-.PHONY: all clean test-vax
+.PHONY: all clean test-vax kit check-kit
 
 # Keep the symlinks to the sources instead of deleting them as intermediates.
 .SECONDARY:
@@ -63,5 +63,16 @@ test-vax:
 	$(MAKE) Opp OppDocTest
 	tools/vax-tests
 
+# Make the kit for VAX/VMS, vax-kit/OPP-KIT.COM, a DCL procedure that
+# unpacks itself, and check it on the guest: unpack, build, set up and use
+# it there (tools/make-vax-kit, tools/check-vax-kit; VAX-VMS-PORT.md, step
+# 7). check-kit compares with the host's Opp.
+kit:
+	tools/make-vax-kit
+
+check-kit: kit
+	$(MAKE) Opp
+	tools/check-vax-kit
+
 clean:
-	-rm -rfv $(BUILDDIR) vax-tests
+	-rm -rfv $(BUILDDIR) vax-tests vax-kit

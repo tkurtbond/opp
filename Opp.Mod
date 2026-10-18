@@ -60,6 +60,9 @@ VAR
   fileArgs: BOOLEAN; (* whether the command line names a file, or - *)
   input: OppText.Buffer;
   stdin: ARRAY 2 OF CHAR;
+  alignHelp: OppText.Buffer; (* --align's help, made of parts so that no
+                               line of opp's source is longer than the
+                               255 characters VMS's CREATE takes *)
 
 PROCEDURE SetWidth(val: LONGINT): BOOLEAN;
 BEGIN
@@ -855,10 +858,17 @@ BEGIN
       ArgParser.MakeStringOption(0X, "cuddle-end",
                                  "END on that line too, when the whole body is on it, as BEGIN RETURN x END Get: where the source has it there (allow, the default), always (force), or never (disallow); only while it fits.",
                                  SetCuddleEnd));
+  alignHelp := OppText.NewBuffer();
+  OppText.Append(alignHelp,
+                 "What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, ");
+  OppText.Append(alignHelp,
+                 "the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; ");
+  OppText.Append(alignHelp,
+                 "keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space. With -p or -k, const, ");
+  OppText.Append(alignHelp,
+                 "type and var put declarations that share lines in a grid of straight columns.");
   parser.AddOption(
-      ArgParser.MakeStringOption(0X, "align",
-                                 "What to line up, as words separated by commas: const, type, var, field, init, comment, case and assign have opp line up the = of constants or types, the types of variables or fields, the := of initializers, trailing comments, CASE bodies, or the := of assignments; all, all of them; no before one of those gives it one space; keep (the default) or drop keeps the author's spaces elsewhere while the line fits, or gives one space. With -p or -k, const, type and var put declarations that share lines in a grid of straight columns.",
-                                 SetAlign));
+      ArgParser.MakeStringOption(0X, "align", alignHelp.chars^, SetAlign));
   parser.AddOption(
       ArgParser.MakeOption(0X, "in-place",
                            "Replace each file with its formatted text.",

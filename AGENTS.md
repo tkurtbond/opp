@@ -42,6 +42,8 @@ make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS with poc in vax-build/
 make -f vaxGNUmakefile test-vax   # run the fixtures and the in-place checks on the VAX guest
+make -f vaxGNUmakefile kit        # write the VMS kit, vax-kit/OPP-KIT.COM
+make -f vaxGNUmakefile check-kit  # write it, then unpack, build and use it on the VAX guest
 tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 ```
 
@@ -83,6 +85,14 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   `tests/vax/NAME.skip` says why a fixture cannot be run there. A change
   to `vms/OppHost.Mod` or to how opp uses `OppHost` is checked with it
   too.
+- **The VMS kit** is `vax-kit/OPP-KIT.COM`, written by
+  `tools/make-vax-kit`: one DCL procedure that unpacks itself into
+  `BUILD.COM`, `SETUP.COM` and `README.TXT` (from `vms/`), `OPP.HLP`, the
+  manual as text, opp's MACRO-32 and poc's runtime's in `[.KIT]`, and the
+  source in `[.SRC]`. It needs only MACRO, LINK and LIBRARY on VMS, not
+  poc. `tools/check-vax-kit` (`check-kit`) unpacks, builds, sets up and
+  uses it in `[.OPPT_KIT]` on the guest, and deletes it after. Check a
+  change to anything in `vms/` with it.
 - **`OppDocTest` is the in-process check battery** of the layout engine,
   run by `tests/opp-doc-selftest.test`, which embeds its output: after
   adding a check, regenerate that fixture from a real run. Prove a new
@@ -159,6 +169,9 @@ poc accept:
   dynamically (`VOCMAIN=-m`) with `tools/voc-heap-gc-spill.c`, which
   replaces `Heap_GC`; the `GNUmakefile` checks that the executable defines
   it. Keep both.
+- **No line of the source is longer than 255 characters**, the most
+  DCL's `CREATE` takes, which unpacks the VMS kit (`tools/make-vax-kit`
+  checks it). A longer string is built from parts, as `--align`'s help is.
 - Strings are `OppText.Text` (`POINTER TO ARRAY OF CHAR`, allocated to
   fit), never fixed arrays that could truncate a long comment or string.
 

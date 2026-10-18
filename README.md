@@ -92,6 +92,19 @@ status is VMS's condition value, `SS$_NORMAL` for 0 and
 `%X10000000 + 8 * n + 2` for `n`. `vms/OPP.HLP` is the text of a help
 library, for `HELP OPP`.
 
+opp comes to VMS as a kit, `OPP-KIT.COM` (`make -f vaxGNUmakefile kit`
+writes it in `vax-kit/`), a DCL procedure that unpacks itself. Copy it in
+ASCII mode, then in an empty directory:
+
+    $ @[-]OPP-KIT
+    $ @BUILD
+    $ @SETUP
+
+`BUILD.COM` assembles and links `[.BIN]OPP.EXE` and makes the help
+library, with MACRO, LINK and LIBRARY alone; poc need not be installed.
+`SETUP.COM`, run in each process (from `LOGIN.COM`, say), defines the
+command `OPP` and makes `HELP OPP` work. The kit's `README.TXT` says more.
+
 ## Building, testing and installing
 
 opp is written in Oberon-2 and builds with either compiler. It needs
@@ -110,13 +123,15 @@ make -f pocGNUmakefile test-poc   # build with poc instead, then run the fixture
 make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS, in vax-build/
 make -f vaxGNUmakefile test-vax   # run the fixtures on a VAX/VMS guest
+make -f vaxGNUmakefile kit        # write the VMS kit, vax-kit/OPP-KIT.COM
+make -f vaxGNUmakefile check-kit  # write it, then unpack, build and use it on the guest
 ```
 
 The VAX build needs poc's VAX runtime (the `peaseblossom-vax` package, or
 `make install-vax` in poc's source) and writes MACRO-32 and a DCL
 procedure, which build `OPP.EXE` on VMS. `test-vax` builds and runs it on
 a VAX/VMS system through poc's `tools/vax-do` (`VAX_HOST`, `VAX_NETRC`;
-`POC_SRC` is poc's source tree).
+`POC_SRC` is poc's source tree), as `check-kit` does the kit.
 
 The poc and voc builds install to the same place under the same name, so
 whichever was installed last replaces the other.

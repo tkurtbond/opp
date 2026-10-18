@@ -1,0 +1,175 @@
+#!/usr/bin/python3 -I
+"""Check opp's kit for VAX/VMS on the guest: unpack it, build it, set it up,
+and use it.
+
+  tools/check-vax-kit
+
+VAX-VMS-PORT.md, step 7; make -f vaxGNUmakefile check-kit runs it, after
+making the kit (tools/make-vax-kit). One DCL procedure, run through poc's
+tools/vax-do, unpacks vax-kit/OPP-KIT.COM in a subdirectory of the guest's
+directory made for it, OPPT_KIT, and then must find:
+
+  - the kit refuses to unpack again where it has been unpacked;
+  - @BUILD builds [.BIN]OPP.EXE and OPP.HLB, and @BUILD again does nothing;
+  - @SETUP defines OPP and a help library HELP OPP finds without /LIBRARY,
+    and @SETUP again defines no second one;
+  - OPP --check finds opp's own source, in [.SRC], formatted (-k
+    --no-module-indent), and OPP -p formats OPPTEXT.MOD as the host's
+    ./Opp does.
+
+Everything it made is deleted after. POC_SRC is poc's source tree
+(default ~/Repos/Oberon/Peaseblossom-main), for tools/vax-do; VAX_HOST and
+VAX_NETRC are vax-do's. Prints FAILED for each failure, then
+"kit: N ok, M failed"; exits 0 if all passed, 1 if not, 2 if the guest
+could not be used.
+"""
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+home = os.path.expanduser("~")
+poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
+kit = os.path.join(root, "vax-kit", "OPP-KIT.COM")
+work = os.path.join(root, "vax-kit", "check")
+if not os.path.exists(kit):
+    sys.exit("check-vax-kit: there is no %s; run tools/make-vax-kit" % kit)
+if os.path.isdir(work):
+    shutil.rmtree(work)
+guest = os.path.join(work, "guest")
+back = os.path.join(work, "back")
+os.makedirs(guest)
+os.makedirs(back)
+shutil.copy(kit, guest)
+
+
+def mark(name, lines):
+    return ["$ WRITE SYS$OUTPUT \"%%%%kit begin %s\"" % name] + lines + \
+        ["$ WRITE SYS$OUTPUT \"%%%%kit status %s \", S" % name, "$ WRITE SYS$OUTPUT \"%%%%kit end %s\"" % name]
+
+
+proc = [
+    "$ ! Written by tools/check-vax-kit: unpacks opp's kit, builds it and uses it",
+    "$ SET NOON",
+    "$ DEF = F$ENVIRONMENT(\"DEFAULT\")",
+    "$ KIT = DEF - \"]\" + \".OPPT_KIT]\"",
+    "$ IF F$SEARCH(\"OPPT_KIT.DIR\") .NES. \"\" THEN WRITE SYS$OUTPUT \"%%kit there is an OPPT_KIT already\"",
+    "$ IF F$SEARCH(\"OPPT_KIT.DIR\") .NES. \"\" THEN EXIT 1",
+    "$ CREATE/DIRECTORY [.OPPT_KIT]",
+    "$ SET DEFAULT [.OPPT_KIT]",
+]
+proc += mark("unpack", ["$ @'DEF'OPP-KIT", "$ S = $STATUS"])
+proc += mark("unpack-again", ["$ @'DEF'OPP-KIT", "$ S = $STATUS"])
+proc += mark("build", ["$ @BUILD", "$ S = $STATUS",
+                       "$ WRITE SYS$OUTPUT \"exe \", F$SEARCH(\"[.BIN]OPP.EXE\")",
+                       "$ WRITE SYS$OUTPUT \"hlb \", F$SEARCH(\"OPP.HLB\")",
+                       "$ WRITE SYS$OUTPUT \"objects \", F$SEARCH(\"[.KIT]*.OBJ\")"])
+proc += mark("build-again", ["$ @BUILD", "$ S = $STATUS"])
+proc += mark("setup", ["$ @SETUP", "$ S = $STATUS", "$ SHOW SYMBOL OPP", "$ SHOW LOGICAL/PROCESS HLP$LIBRARY*"])
+proc += mark("setup-again", ["$ @SETUP", "$ S = $STATUS", "$ SHOW LOGICAL/PROCESS HLP$LIBRARY*"])
+proc += mark("help", ["$ HELP/NOPROMPT OPP EXIT_STATUS", "$ S = $STATUS"])
+proc += mark("check", ["$ OPP --NO-CONFIG -K --NO-MODULE-INDENT --CHECK [.SRC]OPP*.MOD", "$ S = $STATUS"])
+proc += mark("format", ["$ DEFINE/USER_MODE SYS$OUTPUT 'DEF'OPPT_KIT.OUT", "$ OPP --NO-CONFIG -P [.SRC]OPPTEXT.MOD",
+                        "$ S = $STATUS", "$ TYPE 'DEF'OPPT_KIT.OUT"])
+proc += [
+    "$ SET DEFAULT 'DEF'",
+    "$ IF F$SEARCH(\"OPPT_KIT.OUT\") .NES. \"\" THEN DELETE/NOLOG OPPT_KIT.OUT;*",
+    "$ IF F$TYPE(OPP) .NES. \"\" THEN DELETE/SYMBOL/GLOBAL OPP",
+    "$ ! the help libraries SETUP defined, those that name the kit's",
+    "$ N = 0",
+    "$ NAME = \"HLP$LIBRARY\"",
+    "$NEXT_NAME:",
+    "$ DEFINED = F$TRNLNM(NAME, \"LNM$PROCESS\")",
+    "$ IF DEFINED .EQS. \"\" .AND. N .GT. 9 THEN GOTO NAMES_DONE",
+    "$ IF F$LOCATE(\".OPPT_KIT]\", DEFINED) .LT. F$LENGTH(DEFINED) THEN DEASSIGN 'NAME'",
+    "$ N = N + 1",
+    "$ NAME = \"HLP$LIBRARY_\" + F$STRING(N)",
+    "$ GOTO NEXT_NAME",
+    "$NAMES_DONE:",
+]
+for d in ["OPPT_KIT.BIN", "OPPT_KIT.KIT", "OPPT_KIT.SRC", "OPPT_KIT"]:
+    parent, _, leaf = d.rpartition(".")
+    where = "[.%s]" % parent if parent else ""
+    proc += ["$ IF F$SEARCH(\"[.%s]*.*;*\") .NES. \"\" THEN DELETE/NOLOG [.%s]*.*;*" % (d, d),
+             "$ IF F$SEARCH(\"%s%s.DIR\") .NES. \"\" THEN SET PROTECTION=(O:RWED) %s%s.DIR" % (where, leaf, where, leaf),
+             "$ IF F$SEARCH(\"%s%s.DIR\") .NES. \"\" THEN DELETE/NOLOG %s%s.DIR;*" % (where, leaf, where, leaf)]
+proc += ["$ EXIT 1"]
+with open(os.path.join(guest, "CHECKKIT.COM"), "w") as f:
+    f.write("\n".join(proc) + "\n")
+
+env = dict(os.environ)
+env.setdefault("VAX_DO_TIMEOUT", "3600")
+with open(os.path.join(work, "vax-do.log"), "wb") as logf:
+    r = subprocess.run([os.path.join(poc_src, "tools", "vax-do"), "-o", back, "CHECKKIT.COM", "OPP-KIT.COM"],
+                       cwd=guest, env=env, stdout=logf, stderr=subprocess.STDOUT)
+log = os.path.join(back, "VAXDO.LOG")
+if r.returncode == 2 or not os.path.exists(log):
+    sys.stderr.write(open(os.path.join(work, "vax-do.log"), encoding="latin-1").read())
+    sys.exit("check-vax-kit: the VAX guest could not be used")
+
+parts, status, part = {}, {}, None
+for line in open(log, encoding="latin-1").read().splitlines():
+    m = re.match(r"^%%kit (begin|end) (\S+)$", line)
+    if m:
+        part = m.group(2) if m.group(1) == "begin" else None
+        parts.setdefault(m.group(2), "")
+        continue
+    m = re.match(r"^%%kit status (\S+) %X([0-9A-F]+)$", line)
+    if m:
+        status[m.group(1)] = int(m.group(2), 16)
+        continue
+    if line.startswith("%%kit"):
+        sys.exit("check-vax-kit: %s" % line)
+    if part:
+        parts[part] += line + "\n"
+
+host = subprocess.run([os.path.join(root, "Opp"), "--no-config", "-p", os.path.join(root, "OppText.Mod")],
+                      stdout=subprocess.PIPE).stdout.decode("latin-1")
+
+
+def success(name):
+    return status.get(name, 0) & 7 in (1, 3)
+
+
+def helps(text):
+    return re.findall(r"HLP\$LIBRARY\S*\" = \"([^\"]*)\"", text)
+
+
+checks = [
+    ("the kit unpacks", lambda: success("unpack") and "unpacked opp" in parts["unpack"]),
+    ("the kit refuses to unpack where it has been", lambda: status.get("unpack-again") == 0x10000014),
+    ("@BUILD builds OPP.EXE and OPP.HLB, and leaves no objects",
+     lambda: success("build") and re.search(r"^exe \S+\.OPPT_KIT\.BIN\]OPP\.EXE;1$", parts["build"], re.M)
+     and re.search(r"^hlb \S+\.OPPT_KIT\]OPP\.HLB;1$", parts["build"], re.M)
+     and re.search(r"^objects $", parts["build"], re.M)),
+    ("@BUILD again builds nothing",
+     lambda: success("build-again") and "assembling" not in parts["build-again"]
+     and "making the help library" not in parts["build-again"]),
+    ("@SETUP defines OPP and a help library",
+     lambda: success("setup") and re.search(r"OPP == \"\$\S+\.OPPT_KIT\.BIN\]OPP\.EXE\"", parts["setup"])
+     and [h for h in helps(parts["setup"]) if ".OPPT_KIT]OPP.HLB" in h]),
+    ("@SETUP again defines no second help library",
+     lambda: success("setup-again") and helps(parts["setup-again"]) == helps(parts["setup"])),
+    ("HELP OPP finds the help library", lambda: success("help") and "%X1000000A" in parts["help"]),
+    ("the kit's source is formatted", lambda: status.get("check") == 1 and parts["check"] == ""),
+    ("OPP -p formats as the host's opp does",
+     lambda: status.get("format") == 1 and parts["format"] == host),
+]
+ok = failed = 0
+for what, test in checks:
+    try:
+        passed = bool(test())
+    except KeyError:
+        passed = False
+    if passed:
+        ok += 1
+    else:
+        failed += 1
+        print("FAILED: kit: %s" % what)
+if failed:
+    print("  the guest's log: %s" % log)
+print("kit: %d ok, %d failed" % (ok, failed))
+sys.exit(0 if failed == 0 else 1)

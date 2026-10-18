@@ -1,8 +1,8 @@
 # Porting opp to VAX/VMS 5.5-2
 
 A plan for running opp on VAX/VMS 5.5-2, built by poc, the Peaseblossom
-Oberon Compiler (`~/Repos/Oberon/Peaseblossom-main`, 0.7.0). Nothing here
-is done yet. The authority on VMS is poc's *VAX/VMS Guide*
+Oberon Compiler (`~/Repos/Oberon/Peaseblossom-main`, 0.7.0). All seven
+steps below are done, each with what it found. The authority on VMS is poc's *VAX/VMS Guide*
 (`doc/vax-vms-guide.md` in poc's tree, "the guide" below) and the VAX
 runtime's source, `rtl/vax`.
 
@@ -270,7 +270,7 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    - Building on VMS itself was not tried: the guest's only poc,
      `[.BIN]POC.EXE`, is 0.5.0, a stage of poc's bootstrap, which cannot
      be expected to build 0.7.0's runtime. It needs the 0.7.0 kit
-     installed there, which step 7 will need too.
+     installed there, which a build from the kit's source needs too (step 7).
 
 5. **The fixtures on the VAX** (`tools/vax-tests`, below), then a VMS
    version of `tests/in-place.sh` for `--in-place` (versions) and
@@ -309,6 +309,48 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    VMS from source (`POC OPP.MOD` with `ArgParser.Mod` on `POC$IMPORT`)
    should also work, since poc on VMS uses the same front end. Step 4
    should try it once.
+
+   Done 2026-10-18, with one change of design: the kit carries poc's
+   runtime too, so that it needs no poc kit on VMS at all, only MACRO,
+   LINK and LIBRARY. `tools/make-vax-kit` writes `vax-kit/OPP-KIT.COM`,
+   one DCL procedure of about 1.3 MB that unpacks itself, after poc's own
+   kit (`$ CREATE`, `$ DECK/DOLLARS=`, the lines, the marker), into the
+   directory it is run in:
+
+   - `README.TXT` (from `vms/README.TXT`, with the version in it),
+     `BUILD.COM`, `SETUP.COM`, `OPP.HLP`, `OPP.TXT` (the manual, from
+     `man`), `LICENSE.TXT` and `VERSION.TXT` (the commit, the date and
+     the poc that compiled it; opp has no version number);
+   - `[.KIT]`: opp's MACRO-32, compiled with the runtime from `rtl/vax`'s
+     source as in step 4, poc's `OPP.COM`, and the runtime's
+     `PocRtl.mar` as `POCRTL.MAR`;
+   - `[.SRC]`: the Oberon-2 source, with `vms/OppHost.Mod` as
+     `OPPHOST.MOD` and `ArgParser.Mod`, for building with poc on VMS;
+   - `[.BIN]`, empty, for `OPP.EXE`.
+
+   It refuses to unpack where a kit has been unpacked. `BUILD.COM`
+   assembles `POCRTL.MAR`, points `POC$RTL` at `[.KIT]` while `OPP.COM`
+   runs (putting back a definition of the process's own after), moves
+   `OPP.EXE` to `[.BIN]`, deletes the objects, and makes `OPP.HLB`; it
+   builds only what is not there. `SETUP.COM` defines `OPP` and the first
+   free one of `HLP$LIBRARY`, `HLP$LIBRARY_1`, ... as `OPP.HLB`, unless
+   one names it already, so that `HELP OPP` needs no `/LIBRARY`.
+
+   `CREATE` takes lines of at most 255 characters, which `make-vax-kit`
+   checks of every file; one line of `Opp.Mod`, `--align`'s help, had 565,
+   and is now built from parts (AGENTS.md has the rule).
+
+   `make -f vaxGNUmakefile check-kit` runs `tools/check-vax-kit`, which
+   unpacks the kit in `[.OPPT_KIT]` on the guest, builds and sets it up
+   twice each, and runs `HELP OPP EXIT_STATUS`, `OPP --CHECK` over the
+   kit's own source and `OPP -P` on `OPPTEXT.MOD`, compared with the
+   host's; then deletes all it made. All 9 checks pass, in a few
+   minutes; a `SETUP.COM` planted to define the help library twice fails
+   its check.
+
+   Building from `[.SRC]` with poc on VMS is still not tried: the
+   guest's poc is 0.5.0 (step 4), and needs poc's 0.7.0 kit installed
+   first.
 
 ## Testing on the VAX
 
