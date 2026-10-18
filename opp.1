@@ -1,4 +1,4 @@
-.TH OPP 1 2026-10-18 "opp" "User Commands"
+.TH OPP 1 2026-10-18 "opp 0.0.0" "User Commands"
 .SH NAME
 opp \- the Oberon pretty printer
 .SH SYNOPSIS
@@ -268,6 +268,11 @@ the last given wins.
 .TP
 .BR \-h ", " \-\-help
 Show the usage and exit.
+.TP
+.B \-\-version
+Show opp's version, as
+.BR "opp 0.0.0" ,
+and exit.
 .PP
 When more than one of
 .BR \-1 ,
@@ -310,9 +315,10 @@ Only options that say how to format may be in a config file, not
 .BR \-\-output\-dir ,
 .BR \-\-check ,
 .BR \-\-tokens ,
-.B \-\-damage
+.BR \-\-damage ,
+.B \-\-help
 or
-.BR \-\-help .
+.BR \-\-version .
 For example:
 .PP
 .RS

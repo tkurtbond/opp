@@ -48,6 +48,7 @@ given.
 | `--config FILE` | read options from `FILE` instead of the config files |
 | `--no-config` | read no config file |
 | `-h`, `--help` | show the usage and exit |
+| `--version` | show opp's version, as `opp 0.0.0`, and exit |
 
 Exit status: 0 success; 1 a syntax error, an unreadable file, or (with
 `--check`) a file that would change; 2 a command line or config file
@@ -74,7 +75,7 @@ align all,nocomment
 A later setting wins over an earlier one: the directory's file over the
 user's, and the command line over both. Only options that say how to
 format may be in a config file; `--in-place`, `--output-dir`, `--check`,
-`--tokens` and `--damage` may not. `--config FILE` reads `FILE` instead, and
+`--tokens`, `--damage`, `--help` and `--version` may not. `--config FILE` reads `FILE` instead, and
 `--no-config` reads none. A mistake in a config file is reported as
 `file:line: message`, with exit status 2.
 

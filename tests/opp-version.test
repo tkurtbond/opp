@@ -1,0 +1,7 @@
+# --version prints opp's version and exits 0, formatting nothing.
+program Opp
+arg --version
+arg tests/data/fmt-align.Mod
+status 0
+output
+opp 0.0.0

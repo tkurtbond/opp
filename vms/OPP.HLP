@@ -59,6 +59,7 @@
   --config file         read options from file, not the config files
   --no-config           read no config file
   -h, --help            show the usage and exit
+  --version             show opp's version, as opp 0.0.0, and exit
 
   When more than one of -1, -p and -k is given, the last one wins.
 2 In_place

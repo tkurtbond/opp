@@ -45,3 +45,5 @@ opp [options] [file ...]: format Oberon-2 modules for poc or voc; with no file, 
       Read no config file.
   -h, --help
       Show this help and exit.
+  --version
+      Show opp's version and exit.

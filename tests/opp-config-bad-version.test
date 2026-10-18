@@ -1,0 +1,8 @@
+# --version says what opp is, not how to format, so a config file cannot hold it.
+program Opp
+arg --config
+arg tests/data/config/bad-version.conf
+arg tests/data/fmt-align.Mod
+status 2
+output
+opp: tests/data/config/bad-version.conf:2: --version cannot be in a config file

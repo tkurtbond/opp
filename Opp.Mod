@@ -32,6 +32,9 @@ IMPORT SYSTEM, ArgParser, Args, Err, In, Out, Platform, OppText, OppScanner,
     OppFormat, OppCheck, OppHost;
 
 CONST
+  (* opp's version, x.y.z, which make set-version sets (RELEASE.md); 0.0.0
+     before the first release *)
+  version = "0.0.0";
   (* exit statuses (AGENTS.md, "Exit statuses") *)
   failureStatus = 1; internalStatus = 3;
   (* --damage: what to spoil *)
@@ -244,6 +247,13 @@ BEGIN
   Platform.Exit(0);
   RETURN FALSE
 END Help;
+
+PROCEDURE Version(): BOOLEAN;
+BEGIN
+  Out.String("opp "); Out.String(version); Out.Ln; Out.Flush;
+  Platform.Exit(0);
+  RETURN FALSE
+END Version;
 
 (* A command line mistake: msg, and exit status 2. *)
 PROCEDURE UsageError(msg: ARRAY OF CHAR);
@@ -667,7 +677,7 @@ END IsBlank;
 PROCEDURE Configurable(VAR key: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   RETURN (key # "in-place") & (key # "check") & (key # "tokens")
-      & (key # "damage") & (key # "help") & (key # "config")
+      & (key # "damage") & (key # "help") & (key # "version") & (key # "config")
       & (key # "no-config") & (key # "output-dir")
 END Configurable;
 
@@ -912,6 +922,9 @@ BEGIN
                            SetNoConfig));
   parser.AddOption(
       ArgParser.MakeOption("h", "help", "Show this help and exit.", Help));
+  parser.AddOption(
+      ArgParser.MakeOption(0X, "version", "Show opp's version and exit.",
+                           Version));
   ReadConfigs;
   parser.ParseArguments(1);
 

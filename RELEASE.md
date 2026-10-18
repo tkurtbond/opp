@@ -71,6 +71,12 @@ A release `x.y.z` is:
    `opp-version` checks the output, regenerated from a real run each time
    the version changes, never edited by hand. The help fixtures change
    once, for the new line, as they did for `--paren-space`.
+
+   Done 2026-10-18. `version` is `0.0.0` until the first release, so that
+   `make set-version VERSION=0.1.0` raises it. `--version` cannot be in a
+   config file, like `--help` (fixture `opp-config-bad-version`). The
+   README's and `vms/OPP.HLP`'s entries for `--version` show the version
+   (`opp 0.0.0`), which is where `set-version` changes it there.
 3. **`make set-version VERSION=x.y.z`** (`tools/set-version`, Python):
    sets `version` in `Opp.Mod`, the `.TH` line of `opp.1` (version and
    today's date), and the version `README.md` and `vms/OPP.HLP` name; adds
