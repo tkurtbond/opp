@@ -109,8 +109,12 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - **opp's own source is formatted by opp** (`make format`, with
   `-k --no-module-indent`); the fixture `opp-own-source` fails until it
   is. Run `make format` after editing, and read what it changed.
-- **`opp.1` is the manual.** Keep it, `README.md` and the usage in
-  `Opp.Mod` in step when an option changes.
+- **`opp.1` is the manual.** Keep it, `README.md`, the usage in
+  `Opp.Mod` (with `configHelp` in both `OppHost` modules) and
+  `vms/OPP.HLP`, the text of the VMS help library for `HELP OPP`, in step
+  when an option changes. The manual's `VAX/VMS` section and the help
+  file say what differs on VMS. Keep the help file's text within 72
+  columns: HELP indents a subtopic's text 4 more.
 - Where authors' styles differ, opp keeps what the author wrote by default
   and offers options to force it either way (as `--case-bar` and
   `--align`; PLAN.md, "Decisions").

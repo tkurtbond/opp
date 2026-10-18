@@ -296,7 +296,11 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    file names, the 1024-character record limit and the DCL hazards. Also
    a `VAX/VMS` section in `AGENTS.md`: `vms/OppHost.Mod`, `vax-build/`,
    and how to run the VAX tests. Optionally, an `OPP.HLP` for a VMS help
-   library, so that `HELP OPP` works.
+   library, so that `HELP OPP` works. Done 2026-10-18: the manual has a
+   `VAX/VMS` section, and `README.md` one too, with the VAX build;
+   `vms/OPP.HLP` is the help library's text, built on the guest with
+   `LIBRARY/CREATE/HELP` and read with `HELP/LIBRARY` (its topics, and
+   abbreviations of them, found).
 7. **A kit.** `make -f vaxGNUmakefile kit` writes the `.mar` files,
    `OPP.COM` and a `SETUP.COM` that defines the foreign command. The kit
    builds against the `POCRTL` of the poc kit of the same version (LINK

@@ -1,4 +1,4 @@
-.TH OPP 1 2026-10-12 "opp" "User Commands"
+.TH OPP 1 2026-10-18 "opp" "User Commands"
 .SH NAME
 opp \- the Oberon pretty printer
 .SH SYNOPSIS
@@ -205,6 +205,8 @@ old text is first copied to
 .IB file .opp\-backup\fR,
 which is removed once the file is written, and left, and named, if
 writing the file fails.
+On VAX/VMS a new version of the file is written instead (see
+.BR VAX/VMS ).
 Standard input cannot be formatted in place.
 .TP
 .BI \-\-output\-dir " dir"
@@ -312,6 +314,106 @@ A mistake in a config file is reported as
 .IB file : line :
 .I message
 and opp exits with status 2.
+.SH VAX/VMS
+opp runs on VAX/VMS 5.5\-2, built by poc.
+Its options and its formatting are the same as on Unix; what differs is
+how VMS names files and gives a program its command line.
+.PP
+.B OPP.EXE
+takes its arguments as a foreign command, so define a symbol for it:
+.PP
+.RS
+.nf
+$ OPP :== $DISK$USER:[TOOLS]OPP.EXE
+$ OPP \-\-IN\-PLACE \-P *.MOD
+.fi
+.RE
+.PP
+DCL turns what is not quoted into capitals, so opp lowercases every
+argument that starts with
+.BR \- :
+.B \-P
+is
+.BR \-p ,
+and
+.B \-\-ALIGN=ALL
+is
+.BR \-\-align=all .
+Other arguments are left as they are; VMS does not tell the cases of
+file names apart.
+DCL does not expand wildcards, so opp does:
+.BR * ,
+.B %
+and
+.B ...
+name the files they match, each by its whole specification, as
+.BR DUA1:[USERS.ME]LEXER.MOD ,
+and a pattern that matches none is reported, with exit status 1.
+A
+.B \-
+at the end of a DCL line continues the line, so give standard input as
+.B """\-"""
+or name no file; and
+.B !
+starts a comment.
+.PP
+.B \-\-in\-place
+writes the formatted text as a new version of the file, Stream_LF, and
+leaves the version it read as it was, as VMS's editors do: that version
+is the backup, and
+.B PURGE
+removes it.
+The new version has the old one's protection.
+A file of any record format can be formatted, including the
+variable-length records that EDT and FTP write.
+A file named with a version, as
+.BR """LEXER.MOD;3""" ,
+is read from that version, and the new version goes above the highest.
+.PP
+.B \-\-output\-dir
+takes a VMS directory, as
+.B [.FORMATTED]
+or
+.BR DUA1:[USERS.ME.OUT] ;
+each file is written there under its name and type, without its version,
+as a new version if there is one already.
+.PP
+The user's config file is the one the logical name
+.B OPP$CONFIG
+names, or else
+.BR SYS$LOGIN:OPP.CONF ,
+and the current directory's is
+.BR OPP.CONF .
+.PP
+opp's exit status is a VMS condition value, in
+.BR $STATUS :
+.B SS$_NORMAL
+for 0, and for a status
+.I n
+an error,
+.BR %X10000000 " + 8 \(mu " \fIn\fP " + 2" ,
+whose message DCL does not print: 1 is
+.BR %X1000000A ,
+2 is
+.B %X10000012
+and 3 is
+.BR %X1000001A .
+A command procedure recovers
+.I n
+as
+.BR "($STATUS .AND. %XFFF8) / 8" .
+.PP
+VMS writes standard output a record at a time, and a record holds at
+most 1024 characters, so a longer line, which only a long comment or
+string can make, is broken in two on standard output;
+.B \-\-in\-place
+and
+.B \-\-output\-dir
+write files byte for byte and are not affected.
+opp counts a line's width as UTF\-8 text, in which the bytes A0 to BF
+hexadecimal take no column, so a line with those characters of DEC's
+Multinational Character Set can come out wider than the width; the text
+itself is never changed.
 .SH EXIT STATUS
 .TP
 .B 0
@@ -367,6 +469,9 @@ if that is set).
 .TP
 .I .opp.conf
 The current directory's config file.
+.TP
+.BR OPP$CONFIG ", " SYS$LOGIN:OPP.CONF ", " OPP.CONF
+On VAX/VMS, the user's config file and the current directory's.
 .SH SEE ALSO
 .BR poc (1),
 .BR voc (1)

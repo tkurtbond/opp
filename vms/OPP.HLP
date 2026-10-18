@@ -1,0 +1,130 @@
+1 OPP
+  opp, the Oberon pretty printer, reformats Oberon-2 modules written for
+  poc (the Peaseblossom Oberon Compiler) or voc (Vishap Oberon). It keeps
+  every comment and the author's blank lines, lays the code out within a
+  maximum line length, and puts statements one per line, packs short ones
+  onto shared lines, or keeps the author's own grouping. Before it writes
+  anything for a file, it checks that the formatted text has exactly the
+  file's tokens and comments, and parses.
+
+  OPP.EXE takes its arguments as a foreign command:
+
+    $ OPP :== $DISK$USER:[TOOLS]OPP.EXE
+
+  Format:
+
+    OPP [options] [file ...]
+
+  DCL turns what is not quoted into capitals, and opp lowercases every
+  argument that starts with "-", so options may be typed in either case.
+2 Parameters
+  file ...
+
+  The modules to format. A name may have the wildcards *, % and ...,
+  which opp expands itself; a pattern that matches no file is reported,
+  with exit status 1. With no file, or "-" (quoted, since a "-" at the
+  end of a DCL line continues the line), opp reads SYS$INPUT.
+
+  Each formatted file goes to SYS$OUTPUT, unless --in-place, --output-dir
+  or --check is given. The text after the period that ends a module is
+  copied as it is.
+2 Options
+  -w n, --width n       the maximum line length (20 to 1000; default 80)
+  -i n, --indent n      columns per indentation level (1 to 16; default 2)
+  -1, --one-per-line    every statement on its own line (the default)
+  -p, --pack            pack short statements and declarations onto
+                        shared lines
+  -k, --keep-lines      keep statements and declarations on shared lines
+                        where the source has them, while they fit
+  --no-module-indent    start a module's declarations at column 1
+  --module-indent       indent a module's declarations (the default)
+  --case-bar what       a bar before a CASE's first arm: keep (the
+                        default), add or drop
+  --cuddle-begin what   a body's first statement on BEGIN's line: allow
+                        (the default), force or disallow
+  --cuddle-end what     END on that line too: allow, force or disallow
+  --align words         what to line up, words separated by commas:
+                        const, type, var, field, init, comment, case,
+                        assign or all; no before one (nocomment) for one
+                        space; keep (the default) or drop for the
+                        author's spaces elsewhere
+  --in-place            replace each file with its formatted text
+  --output-dir dir      write each file's formatted text to dir
+  -c, --check           write nothing; name each file that would change,
+                        and exit 1 if there is one
+  --tokens              list each file's tokens and comments instead
+  --config file         read options from file, not the config files
+  --no-config           read no config file
+  -h, --help            show the usage and exit
+
+  When more than one of -1, -p and -k is given, the last one wins.
+2 In_place
+  --in-place writes the formatted text as a new version of each file,
+  Stream_LF, and leaves the version it read as it was: that version is
+  the backup, and PURGE removes it. The new version has the old one's
+  protection. A file that is already formatted, or has a syntax error,
+  gets no new version. A file of any record format can be formatted,
+  including the variable-length records that EDT and FTP write. A file
+  named with a version, as "LEXER.MOD;3", is read from that version, and
+  the new version goes above the highest.
+2 Output_dir
+  --output-dir dir writes each file's formatted text to dir, a directory
+  that must exist, as [.FORMATTED] or DUA1:[USERS.ME.OUT], under the
+  file's name and type, as a new version if there is one already. Every
+  file is written, even one already formatted, and none for a file with
+  a syntax error. Two files of the same name are a mistake, found before
+  anything is written, and a file is not written over itself.
+2 Config_files
+  Before the command line, opp reads options from the user's config file,
+  the one the logical name OPP$CONFIG names, or else SYS$LOGIN:OPP.CONF,
+  and then from OPP.CONF in the current directory. A later setting wins
+  over an earlier one, and the command line over both; either file may be
+  missing.
+
+  Each line holds one option by its long name, with or without its --, and
+  its value after white space or =. A flag is its name alone. # starts a
+  comment. Only options that say how to format may be in a config file.
+  For example:
+
+    width = 100
+    pack
+    no-module-indent
+    align all,nocomment
+
+  A mistake in a config file is reported as file:line: message, with exit
+  status 2.
+2 Exit_status
+  opp's status is a condition value in $STATUS: SS$_NORMAL for success,
+  and for a status n an error, %X10000000 + 8 * n + 2, whose message DCL
+  does not print. A procedure recovers n as ($STATUS .AND. %XFFF8) / 8.
+
+    1  %X1000000A  a syntax error or a file that cannot be read or
+                   written, or with --check a file that is not formatted
+    2  %X10000012  a mistake on the command line or in a config file
+    3  %X1000001A  an internal error: a formatted text failed the check,
+                   and was not written
+
+  A syntax error is reported as file:line:column: message.
+2 Restrictions
+  SYS$OUTPUT is written a record at a time, and a record holds at most
+  1024 characters, so a longer line, which only a long comment or string
+  can make, is broken in two there; --in-place and --output-dir are not
+  affected. opp counts widths as UTF-8 text, in which the bytes A0 to BF
+  hexadecimal take no column, so a line with those characters of the DEC
+  Multinational Character Set can come out wider than the width.
+2 Examples
+  Format a module to SYS$OUTPUT:
+
+    $ OPP LEXER.MOD
+
+  Format modules in place, packing short statements, at width 100:
+
+    $ OPP -P -W 100 --IN-PLACE *.MOD
+
+  Write formatted copies of the modules to a subdirectory:
+
+    $ OPP --OUTPUT-DIR [.FORMATTED] *.MOD
+
+  List the modules that are not formatted as the author grouped them:
+
+    $ OPP -K --CHECK *.MOD

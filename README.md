@@ -77,6 +77,21 @@ format may be in a config file; `--in-place`, `--output-dir`, `--check`,
 `--no-config` reads none. A mistake in a config file is reported as
 `file:line: message`, with exit status 2.
 
+## VAX/VMS
+
+opp also runs on VAX/VMS 5.5-2, built by poc, with the same options and
+the same formatting; `VAX-VMS-PORT.md` is the plan and the record of the
+port, and the manual's `VAX/VMS` section has the details. `OPP.EXE` is a
+foreign command (`OPP :== $DISK$USER:[TOOLS]OPP.EXE`); opp lowercases
+the options DCL turns into capitals, and expands wildcards itself.
+`--in-place` writes a new version of each file and leaves the old one as
+the backup. `--output-dir` takes a VMS directory, as `[.FORMATTED]`. The
+config files are the one the logical name `OPP$CONFIG` names, or else
+`SYS$LOGIN:OPP.CONF`, and `OPP.CONF` in the current directory. The exit
+status is VMS's condition value, `SS$_NORMAL` for 0 and
+`%X10000000 + 8 * n + 2` for `n`. `vms/OPP.HLP` is the text of a help
+library, for `HELP OPP`.
+
 ## Building, testing and installing
 
 opp is written in Oberon-2 and builds with either compiler. It needs
@@ -93,7 +108,15 @@ make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/ma
 make uninstall       # remove them (BINDIR and MANDIR to change the places)
 make -f pocGNUmakefile test-poc   # build with poc instead, then run the fixtures
 make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp
+make -f vaxGNUmakefile            # cross-compile for VAX/VMS, in vax-build/
+make -f vaxGNUmakefile test-vax   # run the fixtures on a VAX/VMS guest
 ```
+
+The VAX build needs poc's VAX runtime (the `peaseblossom-vax` package, or
+`make install-vax` in poc's source) and writes MACRO-32 and a DCL
+procedure, which build `OPP.EXE` on VMS. `test-vax` builds and runs it on
+a VAX/VMS system through poc's `tools/vax-do` (`VAX_HOST`, `VAX_NETRC`;
+`POC_SRC` is poc's source tree).
 
 The poc and voc builds install to the same place under the same name, so
 whichever was installed last replaces the other.
