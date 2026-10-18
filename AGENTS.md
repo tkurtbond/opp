@@ -120,6 +120,11 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - **opp's own source is formatted by opp** (`make format`, with
   `-k --no-module-indent`); the fixture `opp-own-source` fails until it
   is. Run `make format` after editing, and read what it changed.
+- **`NEWS.md` says what each release changed.** With a change a user
+  would notice (an option, a change of the output, a fix), add a line to
+  the section for the next release, `## x.y.z (unreleased)`, starting one
+  if there is none; a change of the default output is said plainly.
+  `RELEASE.md` is how a release is made.
 - **`opp.1` is the manual.** Keep it, `README.md`, the usage in
   `Opp.Mod` (with `configHelp` in both `OppHost` modules) and
   `vms/OPP.HLP`, the text of the VMS help library for `HELP OPP`, in step

@@ -8,7 +8,9 @@ everywhere it is written: the constant version in Opp.Mod; the .TH line
 of opp.1, with today's date, and its --version entry; the --version
 entries of README.md and vms/OPP.HLP. Adds a heading "## x.y.z (date)"
 to NEWS.md, above the last release's, if it has none, for the release's
-notes to be written under (and makes NEWS.md, if there is none). Then
+notes to be written under (and makes NEWS.md, if there is none); a
+heading "## x.y.z (unreleased)", for notes written ahead, gets the date.
+Then
 builds Opp with make and regenerates tests/opp-version.test from a real
 run, keeping its header. Each place must hold the current version exactly
 once, or nothing is changed. Run from anywhere; it works in the
@@ -79,7 +81,10 @@ if os.path.exists(os.path.join(root, "NEWS.md")):
     news = read("NEWS.md")
 else:
     news = "# NEWS\n\nWhat changed in each release of opp, newest first.\n"
-if not re.search(r"^## %s " % re.escape(new), news, re.M):
+unreleased = "## %s (unreleased)\n" % new
+if news.count(unreleased) == 1:
+    news = news.replace(unreleased, heading + "\n")
+elif not re.search(r"^## %s " % re.escape(new), news, re.M):
     m = re.search(r"^## ", news, re.M)
     at = m.start() if m else len(news)
     head = news[:at].rstrip("\n") + "\n\n"

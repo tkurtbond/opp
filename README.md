@@ -14,7 +14,8 @@ has exactly the tokens and comments of its input.
 **Status: working.** opp formats files to standard output or in place,
 and checks them with `--check`; every formatted text is checked against
 its input before it is written. `opp.1` is the manual; `PLAN.md` has the
-design, the decisions, and what may come later.
+design, the decisions, and what may come later; `NEWS.md` says what each
+release changed, and `RELEASE.md` how a release is made.
 
 ## Usage
 

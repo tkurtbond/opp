@@ -96,6 +96,11 @@ A release `x.y.z` is:
 4. **`NEWS.md`**, begun with 0.1.0: what opp does, as of its first
    release (the three modes, the safety check, the style options, config
    files, the VAX/VMS port).
+
+   Done 2026-10-18. Notes written ahead of a release go under
+   `## x.y.z (unreleased)`, which `set-version` dates (tried in a fresh
+   clone, as in piece 3). AGENTS.md asks for a line there with each
+   change a user would notice.
 5. **The kit's version.** `tools/make-vax-kit` reads `version` from
    `Opp.Mod` and puts it in `VERSION.TXT` and the kit's first line with
    the commit ("opp 0.1.0, 5e34921, of 2026-10-18, compiled by ..."). It
@@ -130,10 +135,11 @@ pocGNUmakefile test-poc` and `make corpus` passing, and for 5 and 6
 Once the pieces are built, a release `x.y.z` is made in these steps, on
 `main`:
 
-1. **The version.** `make set-version VERSION=x.y.z`, then write the
-   notes in `NEWS.md` under its new heading: what changed since the last
-   release (`git log v<last>..`), for a user, with every change of the
-   default output said plainly.
+1. **The version.** `make set-version VERSION=x.y.z`, then finish the
+   notes in `NEWS.md` under its heading: what changed since the last
+   release (`git log v<last>..`, against what the `(unreleased)` section
+   already says), for a user, with every change of the default output
+   said plainly.
 2. **Check**, all of it:
 
        make test
