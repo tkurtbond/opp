@@ -39,6 +39,8 @@ make corpus          # format large bodies of real Oberon and check them (PLAN.m
 make format          # format opp's own source with opp
 make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
 make set-version VERSION=x.y.z    # set opp's version everywhere, for a release (RELEASE.md)
+make distcheck                    # write the release tarball and VMS kit in dist/, and test the tarball
+make dist-sign                    # sign them (gpg; GPG_KEY for another key)
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS with poc in vax-build/

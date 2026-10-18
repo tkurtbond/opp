@@ -40,7 +40,16 @@ SPILL_LIBS = $(if $(filter Linux,$(shell uname -s)),-ldl)
 export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) \
   $(filter-out $(abspath $(SPILL)) $(SPILL_LIBS),$(LDFLAGS))
 
-.PHONY: corpus format all clean test test-verbose install uninstall set-version
+.PHONY: corpus format all clean test test-verbose install uninstall set-version \
+  dist distcheck dist-sign
+
+# opp's version, Opp.Mod's constant version, and what make dist writes
+# for it in DISTDIR (RELEASE.md): the tarball and the VMS kit, whose name
+# has the version's periods made hyphens, as a VMS name must.
+OPP_VERSION := $(shell sed -n 's/^  version = "\([0-9.]*\)";$$/\1/p' Opp.Mod)
+DISTDIR = dist
+DISTNAME = opp-$(OPP_VERSION)
+DISTKIT = OPP-$(subst .,-,$(OPP_VERSION)).COM
 
 all: $(PROGRAMS)
 
@@ -119,6 +128,51 @@ set-version:
 	$(if $(VERSION),,$(error make set-version needs VERSION=x.y.z))
 	tools/set-version $(VERSION)
 
+# make dist writes $(DISTDIR)/$(DISTNAME).tar.gz, what git tracks at HEAD
+# under $(DISTNAME)/, and the VMS kit $(DISTDIR)/$(DISTKIT), each with its
+# .sha256. It refuses a working tree that differs from HEAD, the version
+# 0.0.0, a NEWS.md without a dated section for the version, and a tag
+# v$(OPP_VERSION) on another commit. Each run writes a new tarball (tar and
+# gzip record times), so make one, check it, sign it and publish that one.
+dist:
+	@test -n "$(OPP_VERSION)" || \
+	  { echo "dist: Opp.Mod has no version" >&2; exit 1; }
+	@test "$(OPP_VERSION)" != 0.0.0 || \
+	  { echo "dist: the version is 0.0.0; make set-version first" >&2; exit 1; }
+	@test -z "$$(git status --porcelain)" || \
+	  { echo "dist: the working tree differs from HEAD" >&2; exit 1; }
+	@grep -q '^## $(OPP_VERSION) ([0-9-]*)$$' NEWS.md || \
+	  { echo "dist: NEWS.md has no dated section for $(OPP_VERSION)" >&2; exit 1; }
+	@if t=$$(git rev-parse -q --verify 'refs/tags/v$(OPP_VERSION)^{commit}'); then \
+	  test "$$t" = "$$(git rev-parse HEAD)" || \
+	  { echo "dist: v$(OPP_VERSION) is a tag on another commit" >&2; exit 1; }; fi
+	install -d $(DISTDIR)
+	git archive --format=tar.gz --prefix=$(DISTNAME)/ -o $(DISTDIR)/$(DISTNAME).tar.gz HEAD
+	$(MAKE) -f vaxGNUmakefile kit KIT=$(DISTDIR)/$(DISTKIT)
+	cd $(DISTDIR) && for f in $(DISTNAME).tar.gz $(DISTKIT); do \
+	  sha256sum $$f > $$f.sha256 || exit 1; done
+	@echo "dist: $(DISTDIR)/$(DISTNAME).tar.gz and $(DISTDIR)/$(DISTKIT)"
+
+# make distcheck makes them, then unpacks the tarball in a new temporary
+# directory and builds and tests it there with voc and with poc, so that a
+# file git does not track, or a test that needs this tree, fails it. make
+# corpus is not run there: it needs the other repositories. LDFLAGS, which
+# this make exports with its own path to the spill object, is unset for
+# the make in the tarball, which adds its own.
+distcheck: dist
+	@d=$$(mktemp -d) && trap 'rm -rf "$$d"' EXIT && \
+	  tar -xzf $(DISTDIR)/$(DISTNAME).tar.gz -C "$$d" && \
+	  env -u LDFLAGS $(MAKE) -C "$$d/$(DISTNAME)" test && \
+	  env -u LDFLAGS $(MAKE) -C "$$d/$(DISTNAME)" -f pocGNUmakefile test-poc && \
+	  echo "distcheck: $(DISTNAME).tar.gz builds and passes its tests"
+
+# make dist-sign writes the detached signatures, .asc, of the tarball and
+# the kit, with gpg's default key, or GPG_KEY's.
+dist-sign:
+	for f in $(DISTNAME).tar.gz $(DISTKIT); do \
+	  gpg --armor --detach-sign $(if $(GPG_KEY),--local-user $(GPG_KEY)) \
+	    $(DISTDIR)/$$f || exit 1; done
+
 install: Opp
 	install -d $(BINDIR)
 	install -m 755 Opp $(BINDIR)/opp
@@ -130,4 +184,4 @@ uninstall:
 
 clean:
 	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym $(SPILL)
-	-rm -rfv *.dSYM
+	-rm -rfv *.dSYM $(DISTDIR)

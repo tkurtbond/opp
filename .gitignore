@@ -17,3 +17,4 @@ __pycache__/
 /vax-build/
 /vax-tests/
 /vax-kit/
+/dist/

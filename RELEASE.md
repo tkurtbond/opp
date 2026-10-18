@@ -130,6 +130,18 @@ A release `x.y.z` is:
    - `dist-sign` writes `opp-x.y.z.tar.gz.asc` with gpg's default key
      (`GPG_KEY=` for another).
    - `make clean` removes `dist/`.
+
+   Done 2026-10-18. The version comes from `Opp.Mod`; `dist` also refuses
+   0.0.0 and a `NEWS.md` whose section for the version is not dated
+   (still `(unreleased)`), and gives the kit a `.sha256` too, and
+   `dist-sign` an `.asc`, as the tarball has. The make in the unpacked
+   tarball runs with `LDFLAGS` unset: this make exports them with its own
+   path to the spill object, which the other's filter would not take out.
+   Tried in a clone at 0.1.0, committed: each refusal; `distcheck` (124
+   ok and in-place 30 ok, with voc and with poc, in the unpacked
+   tarball), whose tarball held exactly what `git ls-files` lists; both
+   sums; the kit's first line "opp 0.1.0, e3faf50, ..."; and `dist-sign`
+   with a throwaway key, both signatures good.
 7. **The process written down**: a "Making a release" section in this
    file, replacing the plan, and a line in AGENTS.md pointing to it.
 8. **Release 0.1.0**, by the steps below.
@@ -167,7 +179,13 @@ Once the pieces are built, a release `x.y.z` is made in these steps, on
 4. **The tarball and the kit**, from that commit:
 
        make distcheck
+       tools/check-vax-kit dist/OPP-x-y-z.COM
        make dist-sign
+
+   `tools/check-vax-kit` checks on the guest the very kit that is
+   published, as `distcheck` does the tarball; `make -f vaxGNUmakefile
+   check-kit` would make the kit again over it, and its `.sha256` could
+   then be of another file.
 
    Run `make dist` once, through `distcheck`, and sign and publish what it
    wrote: each run writes a new tarball (tar and gzip record times), whose
@@ -185,7 +203,7 @@ Once the pieces are built, a release `x.y.z` is made in these steps, on
 6. **Publish**:
 
        gh release create vx.y.z dist/opp-x.y.z.tar.gz{,.sha256,.asc} \
-         dist/OPP-x-y-z.COM --title "opp x.y.z" --notes-file <notes>
+         dist/OPP-x-y-z.COM{,.sha256,.asc} --title "opp x.y.z" --notes-file <notes>
 
    The notes are `NEWS.md`'s section for `x.y.z`, then how to install:
    from the tarball, ArgParser first (the ArgParser release it needs,
