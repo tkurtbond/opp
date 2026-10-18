@@ -40,6 +40,7 @@ make format          # format opp's own source with opp
 make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
+make -f vaxGNUmakefile            # cross-compile for VAX/VMS with poc in vax-build/
 tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 ```
 
@@ -62,6 +63,14 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - `pocGNUmakefile` builds in `poc-build/`, where the sources are symlinked,
   so poc's symbol files do not overwrite voc's and poc does not mistake
   voc's generated `.c` files for modules' C parts.
+- **The VAX/VMS port** is planned, and recorded step by step, in
+  `VAX-VMS-PORT.md`. `vaxGNUmakefile` cross-compiles `Opp` and
+  `OppDocTest` for `vax-dec-vms` in `vax-build/`, with ArgParser from its
+  source (`ARGPARSER_SRC`), writing MACRO-32 and a DCL procedure for each;
+  it needs poc's VAX runtime (the `peaseblossom-vax` package) and runs
+  nothing on a VAX. There `OppHost.Mod` is `vms/OppHost.Mod`, the VMS
+  implementation of `OppHost`: keep the two modules' interfaces the same,
+  and check a change to either with `make -f vaxGNUmakefile` too.
 - **`OppDocTest` is the in-process check battery** of the layout engine,
   run by `tests/opp-doc-selftest.test`, which embeds its output: after
   adding a check, regenerate that fixture from a real run. Prove a new
@@ -105,6 +114,9 @@ poc accept:
   variable or field initializers, no record or array literals, no
   declarations after procedures, no read-only parameters.
 - **No voc-only features** either: no code procedures, no sysflags.
+- `vms/OppHost.Mod` is the one exception: it is built only by poc, for
+  the VAX, and imports poc's `Directories`, which voc does not have.
+  Otherwise it keeps these rules.
 - **`INTEGER` is 16 bits under voc `-O2`.** Use `LONGINT` for every length,
   position, column, line number and width.
 - **`Out` never flushes at program exit under voc**; call `Out.Flush`

@@ -224,13 +224,16 @@ Each step ends with `make test`, `make -f pocGNUmakefile test-poc` and
    and the fixtures `tests/filter-*.test` test it. Reinstall the voc
    module and the poc library. opp sets the filter to
    `OppHost.FoldOption`, which on Unix does nothing.
-3. **`vms/OppHost.Mod` and a VAX build on Unix.** A `vaxGNUmakefile` (on
-   the model of `pocGNUmakefile`) builds `Opp` and `OppDocTest` in
-   `vax-build/` with `poc -target vax-dec-vms`, ArgParser compiled from
-   its source (`ARGPARSER_SRC`, default `~/Repos/Oberon/ArgParser`), and
-   gathers what VMS needs: the `.mar` files and the `.com` file. `make -f
-   vaxGNUmakefile` also checks that the VMS module compiles, which can
-   run without a VAX. `make format` formats `vms/OppHost.Mod`.
+3. **`vms/OppHost.Mod` and a VAX build on Unix** (done 2026-10-18). A
+   `vaxGNUmakefile` (on the model of `pocGNUmakefile`) builds `Opp` and
+   `OppDocTest` in `vax-build/` with `poc -target vax-dec-vms`, ArgParser
+   compiled from its source (`ARGPARSER_SRC`, default
+   `~/Repos/Oberon/ArgParser`), and gathers what VMS needs: the `.mar`
+   files and the `.com` file. `make -f vaxGNUmakefile` also checks that
+   the VMS module compiles, which can run without a VAX. `make format`
+   and the `opp-own-source` fixture cover `vms/OppHost.Mod`. Its
+   procedures cannot run on Unix: poc's `Directories` there follows Unix's
+   rules for names. They are first tried on the VAX, in steps 4 and 5.
 4. **First runs on the VAX.** Use `tools/vax-do` from poc's tree to build
    `OPP.EXE` on the guest and run `OppDocTest`. Its output must match
    `tests/opp-doc-selftest.test`. Then format a few files and compare

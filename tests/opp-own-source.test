@@ -13,5 +13,6 @@ arg OppFormat.Mod
 arg OppHost.Mod
 arg OppScanner.Mod
 arg OppText.Mod
+arg vms/OppHost.Mod
 status 0
 output

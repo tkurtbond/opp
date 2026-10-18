@@ -1,0 +1,61 @@
+# Build opp for VAX/VMS 5.5-2 with poc's VAX back end, cross-compiling on
+# Unix (VAX-VMS-PORT.md, step 3):
+#
+#   make -f vaxGNUmakefile
+#
+# poc needs the VAX runtime, the library POCRTL for vax-dec-vms, which the
+# package peaseblossom-vax installs, as does make install-vax in poc's
+# source. For each program, poc writes each module's MACRO-32, .mar, and
+# its interface, .sym, and the DCL procedure .com, which on VMS assembles
+# the .mar files and links the program against POCRTL. Copy the .mar files
+# and the .com to VMS in ASCII mode and run the procedure there; nothing
+# here runs on the VAX.
+#
+# poc builds in vax-build/, where the sources are symlinked, as
+# pocGNUmakefile builds in poc-build/, and for the same reasons. There
+# OppHost.Mod is vms/OppHost.Mod, the VMS implementation of the module
+# whose Unix one is OppHost.Mod here. ArgParser is compiled from its source
+# in ARGPARSER_SRC, as the poc library argparser is built for Unix only.
+#
+# POC selects another poc, by an absolute path, since it runs in vax-build:
+#
+#   make -f vaxGNUmakefile POC=$HOME/Repos/Oberon/Peaseblossom/build/bin/poc
+
+POC ?= poc
+ARGPARSER_SRC ?= $(HOME)/Repos/Oberon/ArgParser
+
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean,$(MAKECMDGOALS)),all),)
+$(if $(wildcard $(ARGPARSER_SRC)/ArgParser.Mod),,$(error there is no ArgParser.Mod in ARGPARSER_SRC ($(ARGPARSER_SRC))))
+endif
+
+BUILDDIR = vax-build
+PROGRAMS = Opp OppDocTest
+# opp's own modules, which poc compiles from source with the programs
+# that import them; OppHost is vms/OppHost.Mod.
+MODULES = OppText OppScanner OppDoc OppFormat OppCheck OppHost ArgParser
+
+.PHONY: all clean
+
+# Keep the symlinks to the sources instead of deleting them as intermediates.
+.SECONDARY:
+
+all: $(addprefix $(BUILDDIR)/,$(PROGRAMS:=.com))
+
+$(BUILDDIR):
+	mkdir -p $@
+
+$(BUILDDIR)/OppHost.Mod: vms/OppHost.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+$(BUILDDIR)/ArgParser.Mod: $(ARGPARSER_SRC)/ArgParser.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+$(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+# poc compiles every module of a program from its source on every build.
+$(BUILDDIR)/%.com: $(BUILDDIR)/%.Mod $(MODULES:%=$(BUILDDIR)/%.Mod)
+	cd $(BUILDDIR) && $(POC) -target vax-dec-vms -build $*.Mod
+
+clean:
+	-rm -rfv $(BUILDDIR)
