@@ -31,6 +31,9 @@ CONST
   onePerLine* = 0; pack* = 1; keepLines* = 2;
   (* what to do with a bar before a CASE's first arm *)
   keepBar* = 0; addBar* = 1; dropBar* = 2;
+  (* what to do with a blank before the left parenthesis of a call, a type
+     guard or a procedure's parameters *)
+  keepSpace* = 0; addSpace* = 1; dropSpace* = 2;
   (* whether a body's first line goes on BEGIN's line, and END on it too *)
   cuddleAllow* = 0; cuddleForce* = 1; cuddleDisallow* = 2;
   (* what to do with the spaces an author lined things up with *)
@@ -50,6 +53,7 @@ TYPE
     mode*: INTEGER;
     moduleIndent*: BOOLEAN;
     caseBar*: INTEGER; (* keepBar, addBar or dropBar *)
+    parenSpace*: INTEGER; (* keepSpace, addSpace or dropSpace *)
     cuddleBegin*, cuddleEnd*: INTEGER; (* cuddleAllow, cuddleForce or
                                           cuddleDisallow *)
     align*: INTEGER; (* keepAlign or dropAlign, for the spaces of what
@@ -65,7 +69,7 @@ TYPE
     last: S.Token; (* the token before it *)
     eofTok: S.Token; (* the current token after an error *)
     mode: INTEGER;
-    caseBar, align: INTEGER;
+    caseBar, parenSpace, align: INTEGER;
     cuddleBegin, cuddleEnd: INTEGER;
     lineUp, single: SET;
     nextKind: INTEGER; (* what the space before the next token taken
@@ -274,6 +278,27 @@ PROCEDURE Tok(p: Parser): D.Doc;
 BEGIN
   RETURN TokItem(p, FALSE)
 END Tok;
+
+(* A space before the current token, the left parenthesis of a call's
+   arguments, a type guard or a procedure's parameters, as --paren-space
+   says: with keep, if the author wrote a blank before it on its line.
+   None where it would start a line: after a trailing comment that ends
+   one, or before comments on lines of their own. *)
+PROCEDURE ParenSpace(p: Parser): D.Doc;
+  VAR c: S.Comment;
+BEGIN
+  IF p.tok.lead # NIL THEN RETURN NIL END;
+  IF p.last # NIL THEN
+    c := p.last.trail;
+    WHILE (c # NIL) & (c.next # NIL) DO c := c.next END;
+    IF (c # NIL) & c.newlineAfter THEN RETURN NIL END
+  END;
+  IF (p.parenSpace = addSpace)
+      OR (p.parenSpace = keepSpace) & (p.tok.gap > 0) THEN
+    RETURN D.Space()
+  END;
+  RETURN NIL
+END ParenSpace;
 
 (* The comments leading the current token, and a blank line before it,
    taken from it: what goes before an item that starts with it, outside
@@ -485,7 +510,8 @@ BEGIN
     IF Is(p, S.period) THEN Put(d, Tok(p)); Put(d, Expect(p, S.ident))
     ELSIF Is(p, S.lbrak) THEN d := D.Cat(d, Bracketed(p, S.rbrak, exprs))
     ELSIF Is(p, S.arrow) THEN d := D.Cat(d, Tok(p))
-    ELSIF Is(p, S.lparen) THEN d := D.Cat(d, Bracketed(p, S.rparen, exprs))
+    ELSIF Is(p, S.lparen) THEN
+      d := D.Cat(d, ParenSpace(p)); d := D.Cat(d, Bracketed(p, S.rparen, exprs))
     ELSE EXIT
     END
   END;
@@ -922,7 +948,9 @@ BEGIN
         IF Is(p, S.period) THEN Put(d, Tok(p)); Put(d, Expect(p, S.ident))
         ELSIF Is(p, S.lbrak) THEN d := D.Cat(d, Bracketed(p, S.rbrak, exprs))
         ELSIF Is(p, S.arrow) THEN d := D.Cat(d, Tok(p))
-        ELSIF Is(p, S.lparen) THEN d := D.Cat(d, Bracketed(p, S.rparen, exprs))
+        ELSIF Is(p, S.lparen) THEN
+          d := D.Cat(d, ParenSpace(p));
+          d := D.Cat(d, Bracketed(p, S.rparen, exprs))
         ELSE EXIT
         END
       END;
@@ -1262,7 +1290,9 @@ BEGIN
   IF (mark = S.arrow) OR (mark = S.lbrak) THEN d := D.Cat(d, D.Space()) END;
   IF Is(p, S.lparen) THEN d := D.Cat3(d, Receiver(p), D.Space()) END;
   d := D.Cat(d, IdentDef(p, FALSE));
-  IF Is(p, S.lparen) THEN d := D.Cat(d, FormalPars(p)) END;
+  IF Is(p, S.lparen) THEN
+    d := D.Cat(d, ParenSpace(p)); d := D.Cat(d, FormalPars(p))
+  END;
   IF (mark = S.arrow) OR (mark = S.lbrak) THEN RETURN d END;
   IF mark = S.minus THEN
     (* voc's code procedure: a string, or byte values *)
@@ -1369,6 +1399,7 @@ BEGIN
   NEW(p.eofTok); p.eofTok.kind := S.eof; p.eofTok.text := OppText.New("");
   p.eofTok.lead := NIL; p.eofTok.trail := NIL;
   p.mode := opts.mode; p.caseBar := opts.caseBar; p.align := opts.align;
+  p.parenSpace := opts.parenSpace;
   p.cuddleBegin := opts.cuddleBegin; p.cuddleEnd := opts.cuddleEnd;
   p.lineUp := opts.lineUp; p.single := opts.single; p.nextKind := -1;
   p.nextRun := NIL; p.nextAnchor := NIL; p.comments := D.NewRun(TRUE);

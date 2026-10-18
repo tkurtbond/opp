@@ -36,6 +36,7 @@ given.
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--paren-space WHAT` | a blank before the `(` of a call, a type guard or a procedure's parameters (`P (x)`): `keep` it as written (default), `add` one to every one, or `drop` it |
 | `--cuddle-begin WHAT` | a body's first statement on `BEGIN`'s line (`BEGIN RETURN x`): `allow` it where the source has it (default), `force` it, or `disallow` it; only when all of that statement fits |
 | `--cuddle-end WHAT` | `END` on that line too, when the whole body is on it (`BEGIN RETURN x END Get;`): `allow` (default), `force` or `disallow`, likewise; only when all of it fits |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, `assign`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win. With `-p` or `-k`, `const`, `type` and `var` put declarations that share lines in a grid of straight columns |

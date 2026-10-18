@@ -42,6 +42,7 @@ it writes each formatted file to standard output in turn, unless
 | `--no-module-indent` | start a module's declarations at column 1; its statements stay indented |
 | `--module-indent` | indent a module's declarations (the default; to undo a config file's `no-module-indent`) |
 | `--case-bar WHAT` | a bar before a `CASE`'s first arm: `keep` it as written (default), `add` one, or `drop` it |
+| `--paren-space WHAT` | a blank before the `(` of a call, a type guard or a procedure's parameters (`P (x)`): `keep` it as written (default), `add` one to every one, or `drop` it |
 | `--cuddle-begin WHAT` | a body's first statement on `BEGIN`'s line (`BEGIN RETURN x`): `allow` it where the source has it (default), `force` it, or `disallow` it; only when all of that statement fits |
 | `--cuddle-end WHAT` | `END` on that line too, when the whole body is on it (`BEGIN RETURN x END Get;`): `allow` (default), `force` or `disallow`, likewise; only when all of it fits |
 | `--align WORDS` | what to line up, as words separated by commas: `const`, `type`, `var`, `field`, `init`, `comment`, `case`, `assign`, or `all`, for opp to line up; `no` before one (`nocomment`, `noall`) for one space; `keep` (default) or `drop` for the author's spaces elsewhere; later words win |
@@ -425,7 +426,12 @@ statements were on one line is decided from their tokens' line numbers in
 the source.
 
 **Expressions.** Spaces around `:=`, relations and binary operators, none
-inside parentheses or brackets, one after each comma. A chain of operands
+inside parentheses or brackets, one after each comma. A blank before the
+`(` of a call's arguments, a type guard or a procedure heading's
+parameters is kept where the author wrote one on that line;
+`--paren-space add` puts one before every one, and `--paren-space drop`
+takes them away. A call and a type guard look alike without a symbol
+table, so they are treated alike. A chain of operands
 at one precedence level fills its lines, breaking *before* an operator and
 continuing at `2s` from the statement's indentation. A parenthesized
 expression breaks aligned after its `(`. Argument lists, index lists, sets
@@ -508,6 +514,10 @@ not lined up.
   `--case-bar add` and `drop` to make every `CASE` alike** (2026-10-12,
   with the user). In general, where authors' styles differ, opp keeps what
   the author wrote and offers options to force either way.
+- **A blank before the `(` of a call, a type guard or a procedure's
+  parameters is kept as written by default, with `--paren-space add` and
+  `drop`** (2026-10-18, with the user). Until then opp always dropped it.
+  A type guard gets the blank too, since opp cannot tell it from a call.
 - **An author's tabular alignment is kept by default** (2026-10-12, with
   the user), and **`--align` takes a list of what opp lines up itself**
   (2026-10-12, with the user, from `000-todo.org`): `const`, `type`,

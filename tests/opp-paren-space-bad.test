@@ -1,0 +1,8 @@
+# --paren-space takes only keep, add or drop.
+program Opp
+arg --paren-space
+arg sometimes
+arg tests/data/fmt-paren-space.Mod
+status 2
+output
+opp: --paren-space takes keep, add or drop

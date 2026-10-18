@@ -1,0 +1,50 @@
+# --paren-space drop: no blank before a call's, a type guard's or a procedure's
+# parameters' parenthesis.
+program Opp
+arg --paren-space
+arg drop
+arg tests/data/fmt-paren-space.Mod
+status 0
+output
+MODULE M;
+  TYPE
+    R = RECORD (Base)
+      f: INTEGER
+    END;
+    Proc = PROCEDURE (a: INTEGER): INTEGER;
+  PROCEDURE ^ Fwd(a: INTEGER);
+  PROCEDURE ^ Fwd2(a: INTEGER);
+
+  PROCEDURE (VAR r: R) Bound(x: INTEGER);
+  END Bound;
+
+  PROCEDURE (VAR r: R) Bound2(x: INTEGER);
+  END Bound2;
+
+  PROCEDURE Empty*();
+  END Empty;
+
+  PROCEDURE Spaced(a: INTEGER): INTEGER;
+  BEGIN
+    Q(a);
+    Q(a);
+    Q;
+    x := F(a, b) + G(c) * (d + e);
+    p(T).f := 1;
+    p(T).f := 2;
+    r.Bound(1);
+    r.Bound2(2);
+    NEW(p);
+    INC(x);
+    Q (* c *)(a);
+    Q (* c *)(a);
+    Q (* ends the line *)
+    (a);
+    Q(a);
+    Wide(a);
+    IF (a > 0) & H(a) THEN
+      RETURN F(a)
+    END;
+    RETURN F(a)
+  END Spaced;
+END M.

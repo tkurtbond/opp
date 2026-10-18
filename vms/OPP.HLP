@@ -40,6 +40,9 @@
   --module-indent       indent a module's declarations (the default)
   --case-bar what       a bar before a CASE's first arm: keep (the
                         default), add or drop
+  --paren-space what    a blank before the parenthesis of a call, a type
+                        guard or a procedure's parameters, as P (x):
+                        keep (the default), add or drop
   --cuddle-begin what   a body's first statement on BEGIN's line: allow
                         (the default), force or disallow
   --cuddle-end what     END on that line too: allow, force or disallow

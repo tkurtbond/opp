@@ -87,6 +87,21 @@ or
 .B drop
 it.
 .TP
+.BI \-\-paren\-space " what"
+What to do with a blank before the left parenthesis of a call's
+arguments, a type guard or a procedure's parameters, as in
+.BR "P (x)" :
+.B keep
+it where the source has one on that line (the default),
+.B add
+one before every one, or
+.B drop
+it.
+opp cannot tell a call from a type guard, so both are treated alike.
+The parenthesis of a procedure type, as in
+.BR "PROCEDURE (x: INTEGER)" ,
+and of a record's base type always has a blank before it.
+.TP
 .BI \-\-cuddle\-begin " what"
 Whether a procedure's or module's first statement goes on the line of its
 .BR BEGIN ,
