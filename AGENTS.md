@@ -38,6 +38,7 @@ make test            # build, then run tests/*.test; ends "N ok, M failed"
 make corpus          # format large bodies of real Oberon and check them (PLAN.md)
 make format          # format opp's own source with opp
 make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
+make set-version VERSION=x.y.z    # set opp's version everywhere, for a release (RELEASE.md)
 make -f pocGNUmakefile test-poc   # build with poc in poc-build/, then test
 make -f pocGNUmakefile install    # install the poc build as opp
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS with poc in vax-build/

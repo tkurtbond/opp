@@ -32,12 +32,15 @@ MANDIR ?= $(HOME)/local/share/man/man1
 # LDFLAGS to its link command, ahead of libvoc, and dlsym is in libdl on
 # Linux. That needs a dynamic link, so VOCMAIN is -m, not -M, and the
 # programs need voc's libvoc-O2.so to run (found without LD_LIBRARY_PATH on
-# Linux, as voc links it).
+# Linux, as voc links it). A make run under this one (tools/set-version's)
+# inherits the exported LDFLAGS, so they are taken out of it before they
+# are put first, or the link would define Heap_GC twice.
 SPILL = tools/voc-heap-gc-spill.o
 SPILL_LIBS = $(if $(filter Linux,$(shell uname -s)),-ldl)
-export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) $(LDFLAGS)
+export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) \
+  $(filter-out $(abspath $(SPILL)) $(SPILL_LIBS),$(LDFLAGS))
 
-.PHONY: corpus format all clean test test-verbose install uninstall
+.PHONY: corpus format all clean test test-verbose install uninstall set-version
 
 all: $(PROGRAMS)
 
@@ -109,6 +112,12 @@ OPP_SOURCES = Opp.Mod OppCheck.Mod OppDoc.Mod OppDocTest.Mod OppFormat.Mod \
   OppHost.Mod OppScanner.Mod OppText.Mod vms/OppHost.Mod
 format: Opp
 	./Opp --no-config --in-place -k --no-module-indent $(OPP_SOURCES)
+
+# Set opp's version everywhere it is written, for a release: make
+# set-version VERSION=x.y.z (tools/set-version, RELEASE.md).
+set-version:
+	$(if $(VERSION),,$(error make set-version needs VERSION=x.y.z))
+	tools/set-version $(VERSION)
 
 install: Opp
 	install -d $(BINDIR)

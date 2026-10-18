@@ -84,6 +84,15 @@ A release `x.y.z` is:
    notes to be written under; then builds `Opp` and regenerates
    `tests/opp-version.test` from a real run. It refuses a version that is
    not `x.y.z`, or not greater than the current one.
+
+   Done 2026-10-18. Each place must hold the current version exactly
+   once, or nothing is changed. Tried in a fresh clone: 0.1.0 set in all
+   five places, the fixture regenerated and the fixtures passing; 0.1.0
+   again, 0.0.0, 0.1 and 01.0.0 refused; and 0.1.1 after it put its
+   `NEWS.md` heading above 0.1.0's. It showed that a `make` run under
+   another (`set-version`'s `make Opp`) linked `Heap_GC` twice, since the
+   `GNUmakefile` put its exported `LDFLAGS` before what it inherited, its
+   own included; it now takes them out first.
 4. **`NEWS.md`**, begun with 0.1.0: what opp does, as of its first
    release (the three modes, the safety check, the style options, config
    files, the VAX/VMS port).

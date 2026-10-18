@@ -1,0 +1,112 @@
+#!/usr/bin/python3 -I
+"""Set opp's version, for a release (RELEASE.md).
+
+  tools/set-version x.y.z          (make set-version VERSION=x.y.z)
+
+Sets the version, which must be x.y.z and greater than the current one,
+everywhere it is written: the constant version in Opp.Mod; the .TH line
+of opp.1, with today's date, and its --version entry; the --version
+entries of README.md and vms/OPP.HLP. Adds a heading "## x.y.z (date)"
+to NEWS.md, above the last release's, if it has none, for the release's
+notes to be written under (and makes NEWS.md, if there is none). Then
+builds Opp with make and regenerates tests/opp-version.test from a real
+run, keeping its header. Each place must hold the current version exactly
+once, or nothing is changed. Run from anywhere; it works in the
+repository it is in.
+"""
+
+import datetime
+import os
+import re
+import subprocess
+import sys
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def die(msg):
+    sys.stderr.write("set-version: %s\n" % msg)
+    sys.exit(1)
+
+
+def read(name):
+    return open(os.path.join(root, name), encoding="utf-8").read()
+
+
+if len(sys.argv) != 2:
+    die("usage: tools/set-version x.y.z")
+new = sys.argv[1]
+if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", new):
+    die("%s is not a version x.y.z" % new)
+found = re.findall(r'^  version = "([0-9.]+)";$', read("Opp.Mod"), re.M)
+if len(found) != 1:
+    die("Opp.Mod does not hold the constant version once")
+old = found[0]
+
+
+def key(v):
+    return tuple(int(n) for n in v.split("."))
+
+
+if key(new) <= key(old):
+    die("%s is not greater than the current version, %s" % (new, old))
+today = datetime.date.today().isoformat()
+
+# each file's change: (the text that must be there once, its replacement)
+changes = {
+    "Opp.Mod": [('  version = "%s";' % old, '  version = "%s";' % new)],
+    "opp.1": [(None, None),  # the .TH line, below
+              ('.BR "opp %s" ,' % old, '.BR "opp %s" ,' % new)],
+    "README.md": [("show opp's version, as `opp %s`," % old, "show opp's version, as `opp %s`," % new)],
+    "vms/OPP.HLP": [("show opp's version, as opp %s," % old, "show opp's version, as opp %s," % new)],
+}
+texts = {}
+for name, edits in changes.items():
+    text = read(name)
+    for old_text, new_text in edits:
+        if old_text is None:
+            th = re.findall(r'^\.TH OPP 1 \S+ "opp %s" "User Commands"$' % re.escape(old), text, re.M)
+            if len(th) != 1:
+                die('opp.1 has no .TH line for "opp %s"' % old)
+            old_text, new_text = th[0], '.TH OPP 1 %s "opp %s" "User Commands"' % (today, new)
+        if text.count(old_text) != 1:
+            die("%s does not hold %r once" % (name, old_text))
+        text = text.replace(old_text, new_text)
+    texts[name] = text
+
+heading = "## %s (%s)" % (new, today)
+if os.path.exists(os.path.join(root, "NEWS.md")):
+    news = read("NEWS.md")
+else:
+    news = "# NEWS\n\nWhat changed in each release of opp, newest first.\n"
+if not re.search(r"^## %s " % re.escape(new), news, re.M):
+    m = re.search(r"^## ", news, re.M)
+    at = m.start() if m else len(news)
+    head = news[:at].rstrip("\n") + "\n\n"
+    news = head + heading + "\n\n" + (news[at:] if m else "")
+texts["NEWS.md"] = news
+
+for name, text in texts.items():
+    with open(os.path.join(root, name), "w", encoding="utf-8") as f:
+        f.write(text)
+    print("set-version: %s" % name)
+
+r = subprocess.run(["make", "-C", root, "Opp"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+if r.returncode != 0:
+    sys.stderr.write(r.stdout.decode("latin-1"))
+    die("make Opp failed; the version is set, but tests/opp-version.test is not regenerated")
+fixture = os.path.join(root, "tests", "opp-version.test")
+lines = open(fixture, encoding="utf-8").read().split("\n")
+head = lines[:lines.index("output")]
+args = [l[4:] for l in head if l.startswith("arg ")]
+env = dict(os.environ, XDG_CONFIG_HOME="/nonexistent-opp-config")
+r = subprocess.run([os.path.join(root, "Opp")] + args, cwd=root, env=env,
+                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+out = r.stdout.decode("utf-8")
+if r.returncode != 0 or out != "opp %s\n" % new:
+    die("./Opp --version printed %r, status %d" % (out, r.returncode))
+head = [l for l in head if not l.startswith("status ")] + ["status 0"]
+with open(fixture, "w", encoding="utf-8") as f:
+    f.write("\n".join(head + ["output"]) + "\n" + out)
+print("set-version: tests/opp-version.test")
+print("set-version: opp is %s; write its notes in NEWS.md, under %s" % (new, heading))
