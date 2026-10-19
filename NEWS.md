@@ -2,6 +2,12 @@
 
 What changed in each release of opp, newest first.
 
+## 0.1.1 (unreleased)
+
+- `make` builds with voc in `voc-build/`, as `pocGNUmakefile` does with
+  poc in `poc-build/`, instead of leaving its files in the top directory;
+  the programs are `voc-build/Opp` and `voc-build/OppDocTest`.
+
 ## 0.1.0 (2026-10-18)
 
 The first release. opp, the Oberon pretty printer, reformats Oberon-2

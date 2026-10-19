@@ -117,7 +117,7 @@ opp is written in Oberon-2 and builds with either compiler. It needs
 `make -f pocGNUmakefile install` there for poc.
 
 ```sh
-make                 # build Opp with voc
+make                 # build Opp with voc, in voc-build/
 make test            # build, then run the fixtures in tests/
 make corpus          # format poc, voc and other Oberon repos, and check it
 make format          # format opp's own source with opp

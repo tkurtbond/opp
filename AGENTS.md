@@ -35,7 +35,7 @@ changed.
 opp follows the layout of `~/Repos/Oberon/Ropes` and `oberon-tools`:
 
 ```sh
-make                 # build Opp with voc
+make                 # build Opp with voc, in voc-build/
 make test            # build, then run tests/*.test; ends "N ok, M failed"
 make corpus          # format large bodies of real Oberon and check them (PLAN.md)
 make format          # format opp's own source with opp
@@ -68,9 +68,13 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
   scans it left to right, and its output only grows at the end, so a flat
   buffer (`OppText`) is simpler and faster, and opp needs no third shared
   library (PLAN.md, "Decisions").
-- `pocGNUmakefile` builds in `poc-build/`, where the sources are symlinked,
-  so poc's symbol files do not overwrite voc's and poc does not mistake
-  voc's generated `.c` files for modules' C parts.
+- The `GNUmakefile` builds with voc in `voc-build/`, and `pocGNUmakefile`
+  with poc in `poc-build/`, where the sources are symlinked, so that
+  neither leaves its files in the top directory, poc's symbol files do not
+  overwrite voc's, and poc does not mistake voc's generated `.c` files for
+  modules' C parts. `tests/run-tests.sh`, `tests/in-place.sh` and
+  `tools/vax-tests` run the programs from `BINDIR`, by default
+  `voc-build`.
 - **The VAX/VMS port** is planned, and recorded step by step, in
   `VAX-VMS-PORT.md`. `vaxGNUmakefile` cross-compiles `Opp` and
   `OppDocTest` for `vax-dec-vms` in `vax-build/`, with ArgParser from its

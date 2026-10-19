@@ -16,7 +16,7 @@ OPPT_KIT, and then must find:
     and @SETUP again defines no second one;
   - OPP --check finds opp's own source, in [.SRC], formatted (-k
     --no-module-indent), and OPP -p formats OPPTEXT.MOD as the host's
-    ./Opp does.
+    voc-build/Opp does.
 
 Everything it made is deleted after. POC_SRC is poc's source tree
 (default ~/Repos/Oberon/Peaseblossom-main), for tools/vax-do; VAX_HOST and
@@ -134,7 +134,7 @@ for line in open(log, encoding="latin-1").read().splitlines():
     if part:
         parts[part] += line + "\n"
 
-host = subprocess.run([os.path.join(root, "Opp"), "--no-config", "-p", os.path.join(root, "OppText.Mod")],
+host = subprocess.run([os.path.join(root, "voc-build", "Opp"), "--no-config", "-p", os.path.join(root, "OppText.Mod")],
                       stdout=subprocess.PIPE).stdout.decode("latin-1")
 
 

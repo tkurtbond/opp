@@ -3,11 +3,17 @@ VOCFLAGS=-f
 VOCMAIN=-m
 CC ?= cc
 
+# voc builds in voc-build/, where the sources are symlinked, so that what
+# it writes - each module's .sym, .c, .h and .o, and the programs - lands
+# there and not next to the sources.
+BUILDDIR = voc-build
+
 # Modules shared between repos, ArgParser.Mod and Err.Mod (both installed
 # by the ArgParser repo), are in the directories in VOC_OBERON_MODULES
-# (separated by colons), not here.  make finds them through vpath, and voc
-# writes their .sym, .c, .h and .o files here, next to the programs that
-# import them.  A .Mod here overrides one there.
+# (separated by colons), not here.  make finds them through vpath and
+# symlinks them into voc-build/ too, where voc writes their .sym, .c, .h
+# and .o files, next to the programs that import them.  A .Mod here
+# overrides one there.
 VOC_OBERON_MODULES ?= /usr/local/sw/versions/oberon/voc/include/
 vpath %.Mod $(VOC_OBERON_MODULES)
 
@@ -35,13 +41,16 @@ MANDIR ?= $(HOME)/local/share/man/man1
 # Linux, as voc links it). A make run under this one (tools/set-version's)
 # inherits the exported LDFLAGS, so they are taken out of it before they
 # are put first, or the link would define Heap_GC twice.
-SPILL = tools/voc-heap-gc-spill.o
+SPILL = $(BUILDDIR)/voc-heap-gc-spill.o
 SPILL_LIBS = $(if $(filter Linux,$(shell uname -s)),-ldl)
 export LDFLAGS := $(abspath $(SPILL)) $(SPILL_LIBS) \
   $(filter-out $(abspath $(SPILL)) $(SPILL_LIBS),$(LDFLAGS))
 
 .PHONY: corpus format all clean test test-verbose install uninstall set-version \
   dist distcheck dist-sign
+
+# Keep the symlinks to the sources instead of deleting them as intermediates.
+.SECONDARY:
 
 # opp's version, Opp.Mod's constant version, and what make dist writes
 # for it in DISTDIR (RELEASE.md): the tarball and the VMS kit, whose name
@@ -51,52 +60,58 @@ DISTDIR = dist
 DISTNAME = opp-$(OPP_VERSION)
 DISTKIT = OPP-$(subst .,-,$(OPP_VERSION)).COM
 
-all: $(PROGRAMS)
+all: $(addprefix $(BUILDDIR)/,$(PROGRAMS))
 
 # Opp parses its command line with ArgParser, so it needs its symbol file
 # (built along with ArgParser.o) and is rebuilt when it changes.
-Opp: ArgParser.o
+$(BUILDDIR)/Opp: $(BUILDDIR)/ArgParser.o
 
 # ArgParser writes its errors to standard error with Err.
-ArgParser.o: Err.o
+$(BUILDDIR)/ArgParser.o: $(BUILDDIR)/Err.o
 
 # opp's own modules, each built before the modules that import it.
-Opp: Err.o OppText.o OppScanner.o OppDoc.o OppFormat.o OppCheck.o OppHost.o
+$(BUILDDIR)/Opp: $(addprefix $(BUILDDIR)/,Err.o OppText.o OppScanner.o OppDoc.o \
+  OppFormat.o OppCheck.o OppHost.o)
 
-OppFormat.o: OppText.o OppScanner.o OppDoc.o
+$(BUILDDIR)/OppFormat.o: $(addprefix $(BUILDDIR)/,OppText.o OppScanner.o OppDoc.o)
 
-OppCheck.o: OppText.o OppScanner.o
+$(BUILDDIR)/OppCheck.o: $(addprefix $(BUILDDIR)/,OppText.o OppScanner.o)
 
-OppScanner.o: OppText.o
+$(BUILDDIR)/OppScanner.o: $(BUILDDIR)/OppText.o
 
-OppHost.o: OppText.o
+$(BUILDDIR)/OppHost.o: $(BUILDDIR)/OppText.o
 
 # OppDocTest checks the layout engine, OppDoc.
-OppDocTest: OppText.o OppDoc.o
+$(BUILDDIR)/OppDocTest: $(addprefix $(BUILDDIR)/,OppText.o OppDoc.o)
 
-OppDoc.o: OppText.o
+$(BUILDDIR)/OppDoc.o: $(BUILDDIR)/OppText.o
 
+$(BUILDDIR):
+	mkdir -p $@
 
-%: %.Mod $(SPILL)
-	$(VOC) $(VOCFLAGS) $(VOCMAIN) $<
+$(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+$(addprefix $(BUILDDIR)/,$(PROGRAMS)): $(BUILDDIR)/%: $(BUILDDIR)/%.Mod $(SPILL)
+	cd $(BUILDDIR) && $(VOC) $(VOCFLAGS) $(VOCMAIN) $*.Mod
 	@nm $@ | grep -q ' T Heap_GC$$' || { echo "$@ was linked without $(SPILL)'s Heap_GC" >&2; rm -f $@; exit 1; }
 
-$(SPILL): tools/voc-heap-gc-spill.c
+$(SPILL): tools/voc-heap-gc-spill.c | $(BUILDDIR)
 	$(CC) -fPIC -c $< -o $@
 
-%.o : %.Mod
-	$(VOC) $(VOCFLAGS) -s $<
+$(BUILDDIR)/%.o: $(BUILDDIR)/%.Mod
+	cd $(BUILDDIR) && $(VOC) $(VOCFLAGS) -s $*.Mod
 
 
 # Run the fixtures in tests/ against the programs and report how
 # many passed and failed.  See tests/run-tests.sh for the fixture format.
 test: all
-	./tests/run-tests.sh
-	./tests/in-place.sh
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh
+	BINDIR=$(BUILDDIR) ./tests/in-place.sh
 
 # Like test, but announces each test and its outcome as it goes.
 test-verbose: all
-	./tests/run-tests.sh -v
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
 
 # The bodies of real Oberon that make corpus formats: poc (both
 # branches), voc, the other Oberon repos, and opp itself (its source and
@@ -112,15 +127,15 @@ CORPUS_DIRS ?= $(OBERON_REPOS)/Peaseblossom-main $(OBERON_REPOS)/Peaseblossom \
 # Format every module in CORPUS_DIRS in all three modes at widths 60, 80
 # and 120, checking that opp succeeds and is idempotent, and reporting the
 # lines still too long.  See tools/corpus.py.
-corpus: Opp
-	python3 -I tools/corpus.py ./Opp tools/corpus-known-errors $(CORPUS_DIRS)
+corpus: $(BUILDDIR)/Opp
+	python3 -I tools/corpus.py $(BUILDDIR)/Opp tools/corpus-known-errors $(CORPUS_DIRS)
 
 # Format opp's own source with opp, in the style tests/opp-own-source.test
 # checks.
 OPP_SOURCES = Opp.Mod OppCheck.Mod OppDoc.Mod OppDocTest.Mod OppFormat.Mod \
   OppHost.Mod OppScanner.Mod OppText.Mod vms/OppHost.Mod
-format: Opp
-	./Opp --no-config --in-place -k --no-module-indent $(OPP_SOURCES)
+format: $(BUILDDIR)/Opp
+	$(BUILDDIR)/Opp --no-config --in-place -k --no-module-indent $(OPP_SOURCES)
 
 # Set opp's version everywhere it is written, for a release: make
 # set-version VERSION=x.y.z (tools/set-version, RELEASE.md).
@@ -173,9 +188,9 @@ dist-sign:
 	  gpg --armor --detach-sign $(if $(GPG_KEY),--local-user $(GPG_KEY)) \
 	    $(DISTDIR)/$$f || exit 1; done
 
-install: Opp
+install: $(BUILDDIR)/Opp
 	install -d $(BINDIR)
-	install -m 755 Opp $(BINDIR)/opp
+	install -m 755 $(BUILDDIR)/Opp $(BINDIR)/opp
 	install -d $(MANDIR)
 	install -m 644 opp.1 $(MANDIR)/opp.1
 
@@ -183,5 +198,4 @@ uninstall:
 	rm -f $(BINDIR)/opp $(MANDIR)/opp.1
 
 clean:
-	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym $(SPILL)
-	-rm -rfv *.dSYM $(DISTDIR)
+	-rm -rfv $(BUILDDIR) $(DISTDIR)

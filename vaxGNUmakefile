@@ -60,7 +60,7 @@ $(BUILDDIR)/%.com: $(BUILDDIR)/%.Mod $(MODULES:%=$(BUILDDIR)/%.Mod)
 # Run the fixtures, and checks of --in-place and --output-dir, on the
 # VAX/VMS guest, against the host's Opp (tools/vax-tests).
 test-vax:
-	$(MAKE) Opp OppDocTest
+	$(MAKE) voc-build/Opp voc-build/OppDocTest
 	tools/vax-tests
 
 # Make the kit for VAX/VMS, KIT, a DCL procedure that unpacks itself, and
@@ -74,7 +74,7 @@ kit:
 	tools/make-vax-kit -o $(KIT)
 
 check-kit: kit
-	$(MAKE) Opp
+	$(MAKE) voc-build/Opp
 	tools/check-vax-kit $(KIT)
 
 clean:

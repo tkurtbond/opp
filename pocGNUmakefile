@@ -3,13 +3,13 @@
 #
 #   make -f pocGNUmakefile
 #
-# poc builds in poc-build/, where the sources it needs are symlinked, for
-# two reasons. What it writes - each module's .sym (in text), .ll and .o,
-# and the programs - lands there and not next to the sources, where it
-# would overwrite voc's symbol files (voc then ignores them, "warning 306
-# inappropriate symbol file ignored", until they are rebuilt). And poc does
-# not see what voc leaves here: it compiles a Module.c beside Module.Mod as
-# the module's part in C, which voc's generated Opp.c is not.
+# poc builds in poc-build/, where the sources it needs are symlinked, as
+# the GNUmakefile's voc build does in voc-build/. What it writes - each
+# module's .sym (in text), .ll and .o, and the programs - lands there and
+# not next to the sources, where it would be mixed with voc's (voc ignores
+# a symbol file poc wrote, "warning 306 inappropriate symbol file
+# ignored", and poc compiles a Module.c beside Module.Mod as the module's
+# part in C, which voc's generated Opp.c is not).
 #
 # ArgParser is shared with other repos: it comes from the poc library
 # argparser, in $(POC_OBERON_LIBRARIES)/argparser, where make -f

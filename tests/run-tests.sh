@@ -7,14 +7,14 @@
 # the tests to run, instead of all of them; each may be a bare NAME,
 # NAME.test, or tests/NAME.test.
 # The programs are run from BINDIR, relative to the directory above
-# (default: that directory itself), so a build made elsewhere can be
-# tested too.
+# (default: voc-build, where the GNUmakefile builds them), so a build made
+# elsewhere can be tested too.
 #
 #   tests/run-tests.sh -o opp-help opp-width-range
 #
 # A fixture is tests/NAME.test, with these lines, in this order:
 #
-#   program NAME     the program to run, in the directory above
+#   program NAME     the program to run, in BINDIR
 #   arg VALUE        one command line argument; repeat for each argument
 #                    (a bare "arg" is an empty argument)
 #   env NAME=VALUE   set an environment variable for the program; repeat
@@ -44,7 +44,7 @@ while getopts vo opt; do
 done
 shift $((OPTIND - 1))
 
-bindir=${BINDIR:-.}
+bindir=${BINDIR:-voc-build}
 
 cd "$(dirname "$0")/.." || exit 2
 root=$PWD

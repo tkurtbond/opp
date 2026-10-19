@@ -3,11 +3,11 @@
 # write files.  Works
 # on copies of inputs in tests/data/, in a temporary directory, and reports
 # "in-place: N ok, M failed".  Like run-tests.sh, it runs Opp from BINDIR,
-# relative to the directory above (default: that directory itself).
+# relative to the directory above (default: voc-build).
 
 cd "$(dirname "$0")/.." || exit 2
 root=$(pwd)
-bindir=${BINDIR:-.}
+bindir=${BINDIR:-voc-build}
 case $bindir in
   /*) opp=$bindir/Opp ;;
   *)  opp=$root/$bindir/Opp ;;

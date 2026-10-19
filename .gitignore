@@ -5,14 +5,8 @@
 .~
 .~*\#
 \#*\#
-*.c
-*.h
-*.o
-*.sym
-/Opp
+/voc-build/
 /poc-build/
-/OppDocTest
-!/tools/*.c
 __pycache__/
 /vax-build/
 /vax-tests/

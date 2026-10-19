@@ -96,20 +96,20 @@ for name, text in texts.items():
         f.write(text)
     print("set-version: %s" % name)
 
-r = subprocess.run(["make", "-C", root, "Opp"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+r = subprocess.run(["make", "-C", root, "voc-build/Opp"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 if r.returncode != 0:
     sys.stderr.write(r.stdout.decode("latin-1"))
-    die("make Opp failed; the version is set, but tests/opp-version.test is not regenerated")
+    die("make voc-build/Opp failed; the version is set, but tests/opp-version.test is not regenerated")
 fixture = os.path.join(root, "tests", "opp-version.test")
 lines = open(fixture, encoding="utf-8").read().split("\n")
 head = lines[:lines.index("output")]
 args = [l[4:] for l in head if l.startswith("arg ")]
 env = dict(os.environ, XDG_CONFIG_HOME="/nonexistent-opp-config")
-r = subprocess.run([os.path.join(root, "Opp")] + args, cwd=root, env=env,
+r = subprocess.run([os.path.join(root, "voc-build", "Opp")] + args, cwd=root, env=env,
                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 out = r.stdout.decode("utf-8")
 if r.returncode != 0 or out != "opp %s\n" % new:
-    die("./Opp --version printed %r, status %d" % (out, r.returncode))
+    die("voc-build/Opp --version printed %r, status %d" % (out, r.returncode))
 head = [l for l in head if not l.startswith("status ")] + ["status 0"]
 with open(fixture, "w", encoding="utf-8") as f:
     f.write("\n".join(head + ["output"]) + "\n" + out)

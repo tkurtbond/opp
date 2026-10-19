@@ -10,7 +10,7 @@ builds them on the VAX/VMS guest and runs each fixture of tests/*.test
 (or those named), and the checks below, through poc's tools/vax-do, which
 copies the files there and the log back.
 
-Each fixture is run here too, with ./Opp (or BINDIR's), as
+Each fixture is run here too, with voc-build/Opp (or BINDIR's), as
 tests/run-tests.sh runs it, and the guest must print what it prints, on
 standard output and standard error apart, and exit with its status
 (SS$_NORMAL for 0, %X10000000 + 8 * n + 2 for n). The guest has no tree of
@@ -54,7 +54,7 @@ root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 home = os.path.expanduser("~")
 poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
 argparser_src = os.environ.get("ARGPARSER_SRC", os.path.join(home, "Repos/Oberon/ArgParser"))
-bindir = os.environ.get("BINDIR", ".")
+bindir = os.environ.get("BINDIR", "voc-build")
 host_opp_dir = bindir if os.path.isabs(bindir) else os.path.join(root, bindir)
 work = os.path.join(root, "vax-tests")
 data = os.path.join(root, "tests", "data")
