@@ -59,8 +59,8 @@ tests/run-tests.sh -o NAME ...    # selected fixtures, with their real output
 - `ArgParser` and `Err` are shared modules, not in this repo. The voc
   build finds `ArgParser.Mod` and `Err.Mod` through `vpath` in
   `VOC_OBERON_MODULES` (default `/usr/local/sw/versions/oberon/voc/include`);
-  the poc build takes ArgParser from the poc library `argparser` under
-  `POC_OBERON_LIBRARIES` (default `/usr/local/sw/versions/oberon/poc/lib`)
+  the poc build takes ArgParser from the poc library `argparser` in
+  `POCLIBDIR` (default `$(PREFIX)/lib/poc`, with `PREFIX` default `~/.local`)
   and `Err` from poc's runtime. Change them in `~/Repos/Oberon/ArgParser`,
   never here. Reinstall the `argparser` library after upgrading poc: poc
   refuses a library another version built.
