@@ -113,13 +113,12 @@ test: all
 test-verbose: all
 	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
 
-# The bodies of real Oberon that make corpus formats: poc (both
-# branches), voc, the other Oberon repos, and opp itself (its source and
-# its tests' inputs).  A directory that does not
-# exist is skipped.
+# The bodies of real Oberon that make corpus formats: poc, voc, the
+# other Oberon repos, and opp itself (its source and its tests'
+# inputs).  A directory that does not exist is skipped.
 OBERON_REPOS ?= $(HOME)/Repos/Oberon
 VOC_SOURCE ?= /usr/local/sw/src/lang/Oberon/vishap/compiler
-CORPUS_DIRS ?= $(OBERON_REPOS)/Peaseblossom-main $(OBERON_REPOS)/Peaseblossom \
+CORPUS_DIRS ?= $(OBERON_REPOS)/Peaseblossom \
   $(VOC_SOURCE) $(OBERON_REPOS)/ArgParser $(OBERON_REPOS)/Ropes \
   $(OBERON_REPOS)/oberon-tools $(OBERON_REPOS)/polibfyaml \
   $(OBERON_REPOS)/pofltk $(OBERON_REPOS)/oberon-experiments $(CURDIR)

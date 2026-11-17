@@ -1,7 +1,7 @@
 # Porting opp to VAX/VMS 5.5-2
 
 A plan for running opp on VAX/VMS 5.5-2, built by poc, the Peaseblossom
-Oberon Compiler (`~/Repos/Oberon/Peaseblossom-main`, 0.7.0). All seven
+Oberon Compiler (`~/Repos/Oberon/Peaseblossom`, 0.7.0). All seven
 steps below are done, each with what it found. The authority on VMS is poc's *VAX/VMS Guide*
 (`doc/vax-vms-guide.md` in poc's tree, "the guide" below) and the VAX
 runtime's source, `rtl/vax`.
@@ -363,7 +363,7 @@ run both, compare. It drives the guest through `tools/vax-do` (FTP and
 telnet, the login in `~/.netrc-poc-vax`, `VAX_HOST`), which holds
 `tools/vax-lock.sh`'s lock, so opp's runs and poc's take turns. opp's
 script would call poc's tools by `POC_SRC`
-(default `~/Repos/Oberon/Peaseblossom-main`) rather than copy them.
+(default `~/Repos/Oberon/Peaseblossom`) rather than copy them.
 
 `tools/vax-tests` reads the fixtures in `tests/*.test` (118 of them, all
 of `Opp` but one) and writes one DCL procedure that runs each one as a

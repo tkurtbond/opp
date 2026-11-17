@@ -13,14 +13,12 @@ changed.
 
 ## Where the language comes from
 
-- **poc**: `~/Repos/Oberon/Peaseblossom-main/` (the `main` branch) and
-  `~/Repos/Oberon/Peaseblossom/` (the `vax` branch). Their front ends
-  accept the same syntax (only a comment differs in `src/front/Lexer.Mod`),
-  so one grammar covers both. The authorities are `src/front/Lexer.Mod`,
-  `src/front/Parser.Mod`, and poc's `AGENTS.md`, "Language extensions
-  beyond Oberon2.pdf" (full text in `doc/developer/language-extensions.md`).
-  Read them before changing what opp accepts, and check both branches
-  again when either changes its front end.
+- **poc**: `~/Repos/Oberon/Peaseblossom/`, on its `main` branch, which
+  has the VAX/VMS work (the `vax` branch, `rtl/vax`) merged in. The
+  authorities are `src/front/Lexer.Mod`, `src/front/Parser.Mod`, and
+  poc's `AGENTS.md`, "Language extensions beyond Oberon2.pdf" (full text
+  in `doc/developer/language-extensions.md`). Read them before changing
+  what opp accepts, and again when poc's front end changes.
 - **voc**: read-only source at `/usr/local/sw/src/lang/Oberon/vishap/compiler`.
   The scanner is `src/compiler/OPS.Mod`, the parser `src/compiler/OPP.Mod`.
   `doc/Features.md` lists voc's extensions, but its syntax extensions are

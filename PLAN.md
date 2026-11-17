@@ -7,7 +7,7 @@ decisions behind it, and the phases of work.
 
 ## Goals
 
-1. Parse everything poc (both branches) and voc parse, as source text, and
+1. Parse everything poc and voc parse, as source text, and
    reproduce it token for token.
 2. Lay it out within `--width` columns wherever a line can be broken.
 3. Three statement modes: **one statement per line**; **packed**, where
@@ -816,7 +816,6 @@ The languages opp formats:
    (`Oberon2.pdf`, `~/Reference/Computer/Languages/Oberon/`), Appendix B,
    the grammar, as poc reads it.
 8. poc: `src/front/Lexer.Mod`, `src/front/Parser.Mod` and
-   `doc/developer/language-extensions.md` in `~/Repos/Oberon/Peaseblossom-main`
-   and `~/Repos/Oberon/Peaseblossom`.
+   `doc/developer/language-extensions.md` in `~/Repos/Oberon/Peaseblossom`.
 9. voc: `src/compiler/OPS.Mod`, `src/compiler/OPP.Mod` and `doc/Features.md`
    in `/usr/local/sw/src/lang/Oberon/vishap/compiler`.

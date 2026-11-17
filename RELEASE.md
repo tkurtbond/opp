@@ -1,7 +1,7 @@
 # Releasing opp
 
 How a release of opp is made. The model is poc's own process
-(`~/Repos/Oberon/Peaseblossom-main/doc/developer/DEVELOPER.md`, section
+(`~/Repos/Oberon/Peaseblossom/doc/developer/DEVELOPER.md`, section
 7, "Making a release"), cut down to what opp needs: one program, a man
 page, and a kit for VAX/VMS, with no packages; ArgParser's release
 (its AGENTS.md, "Making a release") is the same process at a smaller

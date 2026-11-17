@@ -19,7 +19,7 @@ OPPT_KIT, and then must find:
     voc-build/Opp does.
 
 Everything it made is deleted after. POC_SRC is poc's source tree
-(default ~/Repos/Oberon/Peaseblossom-main), for tools/vax-do; VAX_HOST and
+(default ~/Repos/Oberon/Peaseblossom), for tools/vax-do; VAX_HOST and
 VAX_NETRC are vax-do's. Prints FAILED for each failure, then
 "kit: N ok, M failed"; exits 0 if all passed, 1 if not, 2 if the guest
 could not be used.
@@ -33,7 +33,7 @@ import sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 home = os.path.expanduser("~")
-poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
+poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom"))
 if len(sys.argv) > 2:
     sys.exit("usage: tools/check-vax-kit [KIT]")
 kit = os.path.abspath(sys.argv[1]) if len(sys.argv) == 2 else os.path.join(root, "vax-kit", "OPP-KIT.COM")

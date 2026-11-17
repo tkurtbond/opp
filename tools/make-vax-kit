@@ -32,7 +32,7 @@ Every name is the file's own in capitals, and a VMS name; no line begins
 with the marker, and none is longer than 255 characters, which CREATE
 takes (poc's make-vax-kit found that on the guest): all checked.
 tools/check-vax-kit unpacks and builds it on the guest. POC_SRC is poc's
-source tree (default ~/Repos/Oberon/Peaseblossom-main), for rtl/vax;
+source tree (default ~/Repos/Oberon/Peaseblossom), for rtl/vax;
 ARGPARSER_SRC is ArgParser's (default ~/Repos/Oberon/ArgParser).
 """
 
@@ -46,7 +46,7 @@ import sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 home = os.path.expanduser("~")
-poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
+poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom"))
 argparser_src = os.environ.get("ARGPARSER_SRC", os.path.join(home, "Repos/Oberon/ArgParser"))
 out = os.path.join(root, "vax-kit")
 marker = "$_OPP_KIT_EOF"

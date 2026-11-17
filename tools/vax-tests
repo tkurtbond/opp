@@ -35,7 +35,7 @@ The checks of --in-place and --output-dir are tests/in-place.sh's, made
 for VMS, where --in-place writes a new version: they run in
 subdirectories of their own.
 
-POC_SRC is poc's source tree (default ~/Repos/Oberon/Peaseblossom-main),
+POC_SRC is poc's source tree (default ~/Repos/Oberon/Peaseblossom),
 for rtl/vax and tools/vax-do; ARGPARSER_SRC is ArgParser's (default
 ~/Repos/Oberon/ArgParser); VAX_HOST and VAX_NETRC are tools/vax-do's.
 The work is done in vax-tests/, which is made again each run; -n
@@ -52,7 +52,7 @@ import sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 home = os.path.expanduser("~")
-poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom-main"))
+poc_src = os.environ.get("POC_SRC", os.path.join(home, "Repos/Oberon/Peaseblossom"))
 argparser_src = os.environ.get("ARGPARSER_SRC", os.path.join(home, "Repos/Oberon/ArgParser"))
 bindir = os.environ.get("BINDIR", "voc-build")
 host_opp_dir = bindir if os.path.isabs(bindir) else os.path.join(root, bindir)
