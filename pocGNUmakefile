@@ -20,9 +20,9 @@
 #
 #   make -f pocGNUmakefile POC=$HOME/Repos/Oberon/Peaseblossom/build/bin/poc
 #
-# install copies Opp to BINDIR (default ~/local/bin) as opp, the same place
-# and name as the GNUmakefile's install, so it replaces the voc build
-# there; uninstall removes it, whichever compiler built it:
+# install copies Opp to BINDIR (default ~/local/bin) as opp; the
+# GNUmakefile installs the voc build there as vopp, so the two don't
+# collide. uninstall removes only poc's:
 #
 #   make -f pocGNUmakefile install BINDIR=/usr/local/bin
 

@@ -121,10 +121,10 @@ make                 # build Opp with voc, in voc-build/
 make test            # build, then run the fixtures in tests/
 make corpus          # format poc, voc and other Oberon repos, and check it
 make format          # format opp's own source with opp
-make install         # copy Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
+make install         # copy Opp to ~/local/bin as vopp, and vopp.1 (.so opp.1) to ~/local/share/man/man1
 make uninstall       # remove them (BINDIR and MANDIR to change the places)
 make -f pocGNUmakefile test-poc   # build with poc instead, then run the fixtures
-make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp
+make -f pocGNUmakefile install    # copy poc's Opp to ~/local/bin as opp, opp.1 to ~/local/share/man/man1
 make -f vaxGNUmakefile            # cross-compile for VAX/VMS, in vax-build/
 make -f vaxGNUmakefile test-vax   # run the fixtures on a VAX/VMS guest
 make -f vaxGNUmakefile kit        # write the VMS kit, vax-kit/OPP-KIT.COM
@@ -137,8 +137,9 @@ procedure, which build `OPP.EXE` on VMS. `test-vax` builds and runs it on
 a VAX/VMS system through poc's `tools/vax-do` (`VAX_HOST`, `VAX_NETRC`;
 `POC_SRC` is poc's source tree), as `check-kit` does the kit.
 
-The poc and voc builds install to the same place under the same name, so
-whichever was installed last replaces the other.
+The voc build is installed as `vopp` (its man page `vopp.1` sources
+`opp.1`, which the poc build installs) and the poc build as `opp`, so
+both can be installed at once.
 
 The voc build links dynamically, with `tools/voc-heap-gc-spill.c` (from
 Peaseblossom) in place of voc's `Heap_GC`: without it, voc's garbage

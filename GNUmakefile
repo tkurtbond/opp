@@ -26,9 +26,10 @@ endif
 
 PROGRAMS=Opp OppDocTest
 
-# make install copies Opp to BINDIR, under the name opp.
+# make install copies Opp to BINDIR, under the name vopp, so it doesn't
+# collide with poc's opp (pocGNUmakefile),
 BINDIR ?= $(HOME)/local/bin
-# and its man page, opp.1, to MANDIR.
+# and to MANDIR a man page vopp.1 that sources opp.1, poc's install's.
 MANDIR ?= $(HOME)/local/share/man/man1
 
 # voc's collector misses a pointer held only in a callee-saved register
@@ -189,12 +190,13 @@ dist-sign:
 
 install: $(BUILDDIR)/Opp
 	install -d $(BINDIR)
-	install -m 755 $(BUILDDIR)/Opp $(BINDIR)/opp
+	install -m 755 $(BUILDDIR)/Opp $(BINDIR)/vopp
 	install -d $(MANDIR)
-	install -m 644 opp.1 $(MANDIR)/opp.1
+	echo '.so man1/opp.1' > $(MANDIR)/vopp.1
+	chmod 644 $(MANDIR)/vopp.1
 
 uninstall:
-	rm -f $(BINDIR)/opp $(MANDIR)/opp.1
+	rm -f $(BINDIR)/vopp $(MANDIR)/vopp.1
 
 clean:
 	-rm -rfv $(BUILDDIR) $(DISTDIR)
